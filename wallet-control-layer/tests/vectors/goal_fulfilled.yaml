@@ -1,0 +1,120 @@
+# Language-neutral vectors for the goal_fulfilled check.
+# Spec: specs/check-goal-fulfilled.md
+suite: goal_fulfilled
+check: goal_fulfilled
+cases:
+  - name: an instruction that names a kind of thing has no goal to finish
+    facets:
+      - kind: item_identity
+        require: {item_category_in: [groceries, household]}
+    items:
+      - {item_id: IT0001, item_name: Weekly grocery basket, item_category: groceries}
+    approved_carts:
+      - id: AU0002-RUN
+        items:
+          - {item_id: IT0001, item_name: Weekly grocery basket, item_category: groceries}
+    expect_verdict: not_applicable
+    expect_reason: null
+    note: >
+      The gate, and the reason this check is safe. "Order our household groceries" compiles a
+      category and no keywords, so the second delivery of the week is not a completed goal —
+      it is the most ordinary purchase in the pack.
+
+  - name: the first order of the thing asked for says nothing
+    facets:
+      - kind: item_identity
+        require: {item_category_in: [electronics], item_keywords_all: [27, inch], item_description: 27-inch monitor}
+    items:
+      - {item_id: IT0017, item_name: 27-inch computer monitor, item_category: electronics}
+    approved_carts: []
+    expect_verdict: pass
+    expect_reason: null
+
+  - name: a second order of the thing asked for is recorded, not refused (AU0038)
+    facets:
+      - kind: item_identity
+        require: {item_category_in: [electronics], item_keywords_all: [27, inch], item_description: 27-inch monitor}
+    items:
+      - {item_id: IT0017, item_name: 27-inch computer monitor, item_category: electronics}
+    approved_carts:
+      - id: AU0035-RUN
+        items:
+          - {item_id: IT0017, item_name: 27-inch computer monitor, item_category: electronics}
+    expect_verdict: pass
+    expect_reason: goal_already_fulfilled
+    expect_evidence_contains: orders_of_requested_item=2
+    expect_detail_contains: you have already bought the 27-inch monitor on this errand
+    note: >
+      A pass that carries a reason code: the finding lands in the evidence and in the
+      approval's own sentence, and the decision is unchanged. The customer stated a limit and
+      a seller, not a count.
+
+  - name: the fourth order counts every earlier one (AU0045)
+    facets:
+      - kind: item_identity
+        require: {item_category_in: [electronics], item_keywords_all: [27, inch], item_description: 27-inch monitor}
+    items:
+      - {item_id: IT0017, item_name: 27-inch computer monitor, item_category: electronics}
+    approved_carts:
+      - id: AU0035-RUN
+        items: [{item_id: IT0017, item_name: 27-inch computer monitor, item_category: electronics}]
+      - id: AU0038-RUN
+        items: [{item_id: IT0017, item_name: 27-inch computer monitor, item_category: electronics}]
+      - id: AU0042-RUN
+        items: [{item_id: IT0017, item_name: 27-inch computer monitor, item_category: electronics}]
+    expect_verdict: pass
+    expect_reason: goal_already_fulfilled
+    expect_evidence_contains: orders_of_requested_item=4
+
+  - name: a duplicate stands down for the sharper message (AU0036)
+    facets:
+      - kind: item_identity
+        require: {item_category_in: [electronics], item_keywords_all: [27, inch], item_description: 27-inch monitor}
+    items:
+      - {item_id: IT0017, item_name: 27-inch computer monitor, item_category: electronics}
+    is_duplicate_of: AU0035-RUN
+    approved_carts:
+      - id: AU0035-RUN
+        items: [{item_id: IT0017, item_name: 27-inch computer monitor, item_category: electronics}]
+    expect_verdict: not_applicable
+    expect_reason: null
+    note: '"You approved this same CHF 289.00 order 25 minutes ago" beats "this is order 2".'
+
+  - name: a cart that is not the requested thing is another check's finding
+    facets:
+      - kind: item_identity
+        require: {item_category_in: [electronics], item_keywords_all: [27, inch], item_description: 27-inch monitor}
+    items:
+      - {item_id: IT0070, item_name: Digital gift voucher, item_category: gift_card}
+    approved_carts:
+      - id: AU0035-RUN
+        items: [{item_id: IT0017, item_name: 27-inch computer monitor, item_category: electronics}]
+    expect_verdict: not_applicable
+    expect_reason: null
+
+  - name: an earlier order of something else does not fulfil the goal
+    facets:
+      - kind: item_identity
+        require: {item_category_in: [electronics], item_keywords_all: [27, inch], item_description: 27-inch monitor}
+    items:
+      - {item_id: IT0017, item_name: 27-inch computer monitor, item_category: electronics}
+    approved_carts:
+      - id: AU0033-RUN
+        items: [{item_id: IT0090, item_name: Wireless keyboard, item_category: electronics}]
+    expect_verdict: pass
+    expect_reason: null
+    note: Same category, different thing. The keywords are what carry the identity.
+
+  - name: the customer can ask to be questioned about a repeat
+    repeat_purchase_action: ask
+    facets:
+      - kind: item_identity
+        require: {item_category_in: [electronics], item_keywords_all: [27, inch], item_description: 27-inch monitor}
+    items:
+      - {item_id: IT0017, item_name: 27-inch computer monitor, item_category: electronics}
+    approved_carts:
+      - id: AU0035-RUN
+        items: [{item_id: IT0017, item_name: 27-inch computer monitor, item_category: electronics}]
+    expect_verdict: concern
+    expect_reason: goal_already_fulfilled
+    expect_follow_up: You asked to be checked before a repeat of something already bought.

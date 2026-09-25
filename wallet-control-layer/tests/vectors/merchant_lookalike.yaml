@@ -1,0 +1,52 @@
+# Language-neutral vectors for the merchant_lookalike check.
+# Spec: specs/check-merchant-lookalike.md
+suite: merchant_lookalike
+check: merchant_lookalike
+cases:
+  - name: no confusable merchant means nothing to report
+    merchant_lookalike_of: null
+    merchant_name: TrailSpark
+    expect_verdict: pass
+    expect_reason: null
+    note: A clean merchant adds no reason code to an approval.
+
+  - name: familiar merchant is never a lookalike of itself
+    merchant_lookalike_of: null
+    merchant_name: PixelHarbor
+    merchant_prior_approvals: 6
+    expect_verdict: pass
+    expect_reason: null
+
+  - name: confusable name raises a concern (AU0039)
+    merchant_lookalike_of: ME0022
+    merchant_lookalike_name: PixelHarbor
+    merchant_id: ME0059
+    merchant_name: PixelHarbour
+    merchant_prior_approvals: 0
+    expect_verdict: concern
+    expect_reason: merchant_lookalike
+    expect_evidence_contains: resembles_merchant_name=PixelHarbor
+    note: >
+      One letter from PixelHarbor, different merchant_id, zero history. Weight 2.0 equals
+      STEP_UP_THRESHOLD, so this alone escalates to step_up.
+
+  - name: a genuinely different unfamiliar merchant is not a lookalike
+    merchant_lookalike_of: null
+    merchant_id: ME0023
+    merchant_name: Circuit and Pine
+    merchant_prior_approvals: 0
+    expect_verdict: pass
+    expect_reason: null
+    note: AU0044 — unfamiliar, but not impersonating anything. merchant_permitted handles it.
+
+  - name: control characters in a merchant name never reach the customer message
+    merchant_lookalike_of: ME0022
+    merchant_lookalike_name: PixelHarbor
+    merchant_id: ME0059
+    merchant_name: "Pixel\nHarbour"
+    expect_verdict: concern
+    expect_reason: merchant_lookalike
+    expect_detail_excludes: "\n"
+    note: >
+      The name must be shown — a customer cannot spot a lookalike without seeing it — but
+      untrusted text is rendered through safe_display first.

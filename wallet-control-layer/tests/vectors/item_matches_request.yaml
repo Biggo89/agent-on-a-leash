@@ -1,0 +1,108 @@
+# Language-neutral vectors for the item_matches_request check.
+# Spec: specs/check-item-matches-request.md
+suite: item_matches_request
+check: item_matches_request
+cases:
+  - name: no item_identity facet means the check does not apply
+    facets: []
+    items: [{item_name: Anything at all, item_category: gift_card}]
+    expect_verdict: not_applicable
+    expect_reason: null
+
+  - name: category-only rule matches a grocery line
+    facets: [{kind: item_identity, require: {item_category_in: [groceries]}}]
+    items: [{item_name: Fresh produce selection, item_category: groceries}]
+    expect_verdict: pass
+    expect_reason: item_matches_request
+
+  - name: category and keywords both satisfied
+    facets:
+      - kind: item_identity
+        require:
+          item_category_in: [sporting_goods]
+          item_keywords_all: [road, running]
+          item_description: road-running shoes
+    items: [{item_name: Road-running shoes, item_category: sporting_goods}]
+    expect_verdict: pass
+    expect_reason: item_matches_request
+
+  - name: right category, wrong product (AU0017 trail shoe)
+    facets:
+      - kind: item_identity
+        require:
+          item_category_in: [sporting_goods]
+          item_keywords_all: [road, running]
+          item_description: road-running shoes
+    items: [{item_name: Trail-running shoes, item_category: sporting_goods}]
+    expect_verdict: violation
+    expect_reason: item_not_requested
+    note: >
+      Shares "running" but not "road". Every keyword must appear, or a trail shoe passes as a
+      road shoe.
+
+  - name: right category, unrelated product (AU0020 cycling helmet)
+    facets:
+      - kind: item_identity
+        require:
+          item_category_in: [sporting_goods]
+          item_keywords_all: [road, running]
+          item_description: road-running shoes
+    items: [{item_name: Cycling helmet, item_category: sporting_goods}]
+    expect_verdict: violation
+    expect_reason: item_not_requested
+
+  - name: wholly different category contradicts the purpose (AU0043 gift voucher)
+    facets:
+      - kind: item_identity
+        require:
+          item_category_in: [electronics]
+          item_keywords_all: ["27", inch]
+          item_description: 27-inch monitor
+    items: [{item_name: Digital gift voucher, item_category: gift_card}]
+    expect_verdict: violation
+    expect_reason: cart_contradicts_purpose
+    note: Nothing in the cart is even the right kind of thing.
+
+  - name: one matching line is enough (AU0018 shoes plus add-on)
+    facets:
+      - kind: item_identity
+        require:
+          item_category_in: [sporting_goods]
+          item_keywords_all: [road, running]
+          item_description: road-running shoes
+    items:
+      - {item_name: Road-running shoes, item_category: sporting_goods}
+      - {item_name: Extended protection plan, item_category: subscriptions}
+    expect_verdict: pass
+    expect_reason: item_matches_request
+    note: The add-on is unrequested_addon's business, not this check's.
+
+  - name: one matching line is enough (AU0007 groceries plus a cosmetics gift)
+    facets: [{kind: item_identity, require: {item_category_in: [groceries]}}]
+    items:
+      - {item_name: Fresh produce selection, item_category: groceries}
+      - {item_name: Fragrance and beauty gift, item_category: cosmetics}
+    expect_verdict: pass
+    expect_reason: item_matches_request
+
+  - name: keywords match case-insensitively and ignore punctuation
+    facets:
+      - kind: item_identity
+        require:
+          item_category_in: [electronics]
+          item_keywords_all: ["27", inch]
+    items: [{item_name: 27-INCH Computer Monitor, item_category: electronics}]
+    expect_verdict: pass
+    expect_reason: item_matches_request
+
+  - name: a facet stating no requirement at all is uncertainty
+    facets: [{kind: item_identity, require: {}}]
+    items: [{item_name: Road-running shoes, item_category: sporting_goods}]
+    expect_verdict: unknown
+    expect_reason: insufficient_evidence
+
+  - name: an empty cart cannot contain the requested item
+    facets: [{kind: item_identity, require: {item_category_in: [electronics]}}]
+    items: []
+    expect_verdict: violation
+    expect_reason: cart_contradicts_purpose

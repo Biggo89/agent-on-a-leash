@@ -1,0 +1,449 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Leash Architecture</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --paper:#F5F6F4; --paper-2:#EBEDEA; --ink:#1A1D24; --ink-2:#4A5060; --ink-3:#7B8194;
+  --line:#D6D9D4; --accent:#C8641A; --accent-soft:#FBEBDD;
+  --ok:#2E7D53; --ok-soft:#DFF0E6; --no:#B23A3A; --no-soft:#F6DFDF; --ask:#B7791F; --ask-soft:#FBEFD4;
+  --ui:#3B6EA8; --svc:#C8641A; --con:#6B4FA0; --ext:#5C6370;
+  --code-bg:#ECEEEA; --shadow:0 1px 2px rgba(20,24,30,.06);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#15181E; --paper-2:#1D2129; --ink:#E9EBEE; --ink-2:#B4B9C4; --ink-3:#818898;
+    --line:#2C313B; --accent:#E8863A; --accent-soft:#3A2717;
+    --ok:#5CBF88; --ok-soft:#173224; --no:#E06C6C; --no-soft:#3A1C1C; --ask:#E2A93F; --ask-soft:#3B2E14;
+    --ui:#7FA8DE; --svc:#E8863A; --con:#A48CD6; --ext:#9AA1AE;
+    --code-bg:#1D2129; --shadow:none; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#15181E; --paper-2:#1D2129; --ink:#E9EBEE; --ink-2:#B4B9C4; --ink-3:#818898;
+  --line:#2C313B; --accent:#E8863A; --accent-soft:#3A2717;
+  --ok:#5CBF88; --ok-soft:#173224; --no:#E06C6C; --no-soft:#3A1C1C; --ask:#E2A93F; --ask-soft:#3B2E14;
+  --ui:#7FA8DE; --svc:#E8863A; --con:#A48CD6; --ext:#9AA1AE;
+  --code-bg:#1D2129; --shadow:none; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:16px;line-height:1.55;padding-block:0 64px;padding-inline:16px}
+.wrap{max-width:860px;margin:0 auto}
+h1,h2,h3{font-family:"Sora",system-ui,sans-serif;text-wrap:balance;line-height:1.2;margin:0}
+h1{font-size:2.1rem;font-weight:700;letter-spacing:-.01em}
+h2{font-size:1.45rem;font-weight:600;margin-top:56px;padding-top:24px;border-top:1px solid var(--line)}
+h3{font-size:1.05rem;font-weight:600;margin-top:28px}
+p{margin:12px 0;max-width:68ch}
+a{color:var(--accent)}
+code,pre{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-size:.86em}
+code{background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.eyebrow{font-size:.74rem;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+header{padding-block:40px 8px}
+header p.lede{font-size:1.1rem;color:var(--ink-2);max-width:62ch}
+.meta{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:.85rem;color:var(--ink-3);margin-top:14px}
+nav.phases{display:flex;flex-wrap:wrap;gap:6px;margin:26px 0 8px}
+nav.phases a{font-size:.82rem;text-decoration:none;color:var(--ink-2);border:1px solid var(--line);border-radius:999px;padding:4px 11px;background:var(--paper-2)}
+nav.phases a:hover,nav.phases a:focus-visible{border-color:var(--accent);color:var(--accent);outline:none}
+/* component cards */
+.comps{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin-top:18px}
+.comp{border:1px solid var(--line);border-radius:10px;padding:16px 16px 14px;background:var(--paper-2);box-shadow:var(--shadow);border-top:3px solid var(--c)}
+.comp h3{margin:0;font-size:1rem}
+.comp .role{color:var(--ink-3);font-size:.8rem;margin:2px 0 10px}
+.comp ul{margin:0;padding-left:18px;font-size:.92rem;color:var(--ink-2)}
+.comp li{margin:4px 0}
+.comp .where{margin-top:10px;font-size:.8rem;color:var(--ink-3)}
+.comp .where code{font-size:.78rem}
+.c-ui{--c:var(--ui)} .c-svc{--c:var(--svc)} .c-con{--c:var(--con)} .c-ext{--c:var(--ext)}
+/* boundary callout */
+.rule{border-left:3px solid var(--accent);background:var(--accent-soft);padding:12px 16px;border-radius:0 8px 8px 0;margin:20px 0}
+.rule p{margin:4px 0}
+/* system map */
+.map{overflow-x:auto;margin:18px 0;border:1px solid var(--line);border-radius:10px;background:var(--paper-2);padding:14px}
+.map svg{display:block;min-width:640px;width:100%;height:auto}
+.map text{font-family:"IBM Plex Sans",system-ui,sans-serif;fill:var(--ink)}
+.map .t2{fill:var(--ink-3);font-size:11px}
+.map .mono{font-family:"IBM Plex Mono",monospace;font-size:11px;fill:var(--ink-2)}
+.map .box{fill:var(--paper);stroke:var(--line);stroke-width:1.2}
+.map .ln{stroke:var(--ink-3);stroke-width:1.4;fill:none;marker-end:url(#arr)}
+.map .ln.d{stroke-dasharray:4 3}
+/* phase blocks */
+.phase{margin-top:36px}
+.phase .who{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 12px}
+.tag{font-size:.74rem;font-weight:600;letter-spacing:.04em;padding:2px 9px;border-radius:999px;border:1px solid transparent}
+.tag.ui{color:var(--ui);border-color:var(--ui)} .tag.svc{color:var(--svc);border-color:var(--svc)} .tag.con{color:var(--con);border-color:var(--con)} .tag.ext{color:var(--ext);border-color:var(--ext)}
+.steps{counter-reset:s;list-style:none;padding:0;margin:14px 0}
+.steps li{counter-increment:s;display:grid;grid-template-columns:30px 1fr;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+.steps li::before{content:counter(s);font-family:"Sora",sans-serif;font-weight:600;color:var(--accent);font-size:.9rem;padding-top:2px}
+.steps li b{font-weight:600}
+.steps li .ep{display:block;color:var(--ink-3);font-size:.84rem;margin-top:2px}
+pre.seq{overflow-x:auto;background:var(--paper-2);border:1px solid var(--line);border-radius:10px;padding:10px;margin:14px 0;font-size:.8rem;color:var(--ink-2)}
+pre.seq svg{max-width:100%;height:auto;display:block;margin:0 auto}
+pre.seq[data-processed]{font-size:0;line-height:0}
+/* decision pills */
+.dec{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:.8rem;padding:1px 8px;border-radius:5px;font-weight:500}
+.dec.ok{background:var(--ok-soft);color:var(--ok)} .dec.no{background:var(--no-soft);color:var(--no)} .dec.ask{background:var(--ask-soft);color:var(--ask)}
+/* tables */
+table{border-collapse:collapse;width:100%;font-size:.92rem;margin:14px 0}
+.tbl{overflow-x:auto}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.76rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+td code{white-space:nowrap}
+.principles{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px 22px;margin-top:14px}
+.principles div{font-size:.94rem;color:var(--ink-2)}
+.principles b{color:var(--ink);display:block;margin-bottom:2px}
+footer{margin-top:56px;font-size:.82rem;color:var(--ink-3);border-top:1px solid var(--line);padding-top:16px}
+@media (max-width:520px){h1{font-size:1.7rem} h2{margin-top:44px}}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">Agent on a Leash · Viseca challenge · Hack Zurich 2026</div>
+  <h1 style="margin-top:8px">Leash Architecture</h1>
+  <p class="lede">How the three pieces we built, the demo UI, the Leash decision service and the Leash Wallet connector, fit together, who talks to whom, and what happens in each phase from the cardholder's first sentence to a revoked mandate.</p>
+  <div class="meta"><span>Status: as built, 25 Sept 2026 (updated for PRs #14–#16: live pack, live instructions)</span><span>Source: <code>wallet-control-layer/</code>, <code>leash-demo/</code>, <code>connector/</code></span></div>
+  <nav class="phases" aria-label="Phases">
+    <a href="#components">Components</a>
+    <a href="#map">System map</a>
+    <a href="#p0">0 · Boot</a>
+    <a href="#p1">1 · Authoring</a>
+    <a href="#p2">2 · Deciding</a>
+    <a href="#p3">3 · Step-up</a>
+    <a href="#p4">4 · Control</a>
+    <a href="#p5">5 · Agent connector</a>
+    <a href="#modes">Modes</a>
+    <a href="#principles">Principles</a>
+  </nav>
+</header>
+
+<p>The system answers one question, many times: <em>may this AI shopping agent spend this cardholder's money on this order?</em> Every answer is one of <span class="dec ok">approve</span> <span class="dec no">decline</span> <span class="dec ask">step_up</span>, with a plain-language reason and an audit record. We build the control layer; the shopping agent is either Viseca's simulator or a real LLM host plugged in through the connector.</p>
+
+<div class="rule">
+  <p><b>The one boundary everything follows.</b> Only the Leash service talks to Viseca's API and only it holds the team key, the compiled policy, the rolling-window ledger and the audit trail. The UI and the connector are thin clients of that service. One place holds run state, so nothing needs to be kept in sync.</p>
+</div>
+
+<h2 id="components">The components</h2>
+<p>Three we built, two we plug into. Each runs as its own process on its own port, so they can be deployed and scaled apart, which is what Viseca asked for: the configuration UI belongs in their mobile app, the decision must run in the backend under a strict deadline.</p>
+
+<div class="comps">
+  <div class="comp c-ui">
+    <h3>Demo UI</h3>
+    <div class="role">The cardholder's screen and the judges' window · vanilla JS, no build</div>
+    <ul>
+      <li>Three columns: the agent shopping, the Leash checking each order, the cardholder's phone.</li>
+      <li>Shows the instruction with every span that became a rule highlighted.</li>
+      <li>Answers step-ups, edits any rule with the blast radius shown before commit.</li>
+      <li>Holds <b>no</b> API key. Never calls Viseca. Can replay 45 recorded decisions with no engine at all.</li>
+    </ul>
+    <div class="where"><code>leash-demo/</code> · <code>./serve.py</code> · <code>:8771</code></div>
+  </div>
+  <div class="comp c-svc">
+    <h3>Leash service</h3>
+    <div class="role">The engine · Python 3.12, FastAPI</div>
+    <ul>
+      <li><b>Policy compiler</b>: instruction → Policy IR. An LLM may help, once, at authoring time; a regex baseline always can.</li>
+      <li><b>Evaluator</b>: 16 deterministic checks, a trust score, a deadline guard under the 8 s budget.</li>
+      <li><b>Supervisor</b>: mandates, runs, the ledger of rolling windows, pending step-ups.</li>
+      <li><b>Audit log</b>: append-only JSONL, one record per decision with evidence and timing.</li>
+      <li>Owns the team key and the only client of Viseca's API.</li>
+    </ul>
+    <div class="where"><code>wallet-control-layer/src/leash/</code> · <code>make serve</code> / <code>serve-live</code> · <code>:8000</code></div>
+  </div>
+  <div class="comp c-con">
+    <h3>Leash Wallet connector</h3>
+    <div class="role">Lets a real agent onto the leash · MCP over HTTP + OAuth 2.1</div>
+    <ul>
+      <li>MCP server mounted at <code>/mcp</code> on the service. Five tools, three scopes.</li>
+      <li>Verifies bearer tokens by introspection; maps token → cardholder, card, agent.</li>
+      <li>Ships with a <b>mock Payment App</b>: OAuth server, consent screen, the phone (confirm, step-up, revoke).</li>
+      <li>The agent can propose, request and read. It can never confirm, resolve, amend or revoke: those scopes don't exist for it.</li>
+    </ul>
+    <div class="where"><code>src/leash/connector/</code>, <code>payment_app/</code> · <code>make connect</code> · <code>:8010</code></div>
+  </div>
+  <div class="comp c-ext">
+    <h3>Viseca sandbox API <span style="font-weight:400;color:var(--ink-3)">/ offline replica</span></h3>
+    <div class="role">The simulator that proposes purchases · theirs, or our copy of it</div>
+    <ul>
+      <li>Holds mandates, scenario runs and the queue of authorization requests.</li>
+      <li>Delivers one proposed purchase at a time by long poll; waits for our decision; enforces the 8 s and 120 s windows.</li>
+      <li>The replica in <code>sandbox/</code> mirrors it byte for byte so the demo works with no network.</li>
+    </ul>
+    <div class="where">Azure (<code>LEASH_BASE_URL</code>) · replica <code>make sandbox</code> · <code>:8099</code></div>
+  </div>
+</div>
+
+<h2 id="map">System map</h2>
+<p>Solid arrows are HTTP calls at run time. The dashed one is the optional LLM call, made only while a policy is being written, never while a purchase is being decided.</p>
+<div class="map">
+<svg viewBox="0 0 760 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="System map of the Leash components">
+  <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--ink-3)"/></marker></defs>
+  <!-- cardholder -->
+  <rect class="box" x="20" y="150" width="130" height="60" rx="8"/>
+  <text x="85" y="176" text-anchor="middle" font-size="13" font-weight="600">Cardholder</text>
+  <text class="t2" x="85" y="194" text-anchor="middle">writes the policy, answers step-ups</text>
+  <!-- UI -->
+  <rect class="box" x="210" y="40" width="170" height="70" rx="8" style="stroke:var(--ui);stroke-width:2"/>
+  <text x="295" y="66" text-anchor="middle" font-size="13" font-weight="600">Demo UI</text>
+  <text class="mono" x="295" y="84" text-anchor="middle">leash-demo · :8771</text>
+  <text class="t2" x="295" y="100" text-anchor="middle">Replay · Live engine · Live sandbox</text>
+  <!-- Agent host -->
+  <rect class="box" x="210" y="270" width="170" height="70" rx="8" style="stroke:var(--con);stroke-width:2"/>
+  <text x="295" y="296" text-anchor="middle" font-size="13" font-weight="600">Agent host</text>
+  <text class="t2" x="295" y="314" text-anchor="middle">Claude · ChatGPT · Claude Code</text>
+  <text class="mono" x="295" y="330" text-anchor="middle">MCP client, speaks OAuth</text>
+  <!-- Service -->
+  <rect class="box" x="440" y="120" width="190" height="160" rx="8" style="stroke:var(--svc);stroke-width:2"/>
+  <text x="535" y="146" text-anchor="middle" font-size="13" font-weight="600">Leash service · :8000</text>
+  <text class="mono" x="535" y="168" text-anchor="middle">compiler → Policy IR</text>
+  <text class="mono" x="535" y="186" text-anchor="middle">evaluator · 16 checks</text>
+  <text class="mono" x="535" y="204" text-anchor="middle">supervisor · ledger</text>
+  <text class="mono" x="535" y="222" text-anchor="middle">audit log (jsonl)</text>
+  <rect x="452" y="238" width="166" height="30" rx="6" fill="var(--paper-2)" stroke="var(--con)" stroke-width="1.4"/>
+  <text x="535" y="258" text-anchor="middle" font-size="12" font-weight="600" fill="var(--con)">connector · /mcp</text>
+  <!-- Payment app -->
+  <rect class="box" x="440" y="310" width="190" height="60" rx="8" style="stroke:var(--con);stroke-width:1.4"/>
+  <text x="535" y="334" text-anchor="middle" font-size="12" font-weight="600">Mock Payment App · /app</text>
+  <text class="t2" x="535" y="352" text-anchor="middle">OAuth server · consent · the phone</text>
+  <!-- Viseca -->
+  <rect class="box" x="670" y="120" width="80" height="160" rx="8" style="stroke:var(--ext);stroke-width:2"/>
+  <text x="710" y="150" text-anchor="middle" font-size="12" font-weight="600">Viseca</text>
+  <text x="710" y="166" text-anchor="middle" font-size="12" font-weight="600">API</text>
+  <text class="t2" x="710" y="190" text-anchor="middle">or replica</text>
+  <text class="mono" x="710" y="206" text-anchor="middle">:8099</text>
+  <text class="t2" x="710" y="236" text-anchor="middle">mandates</text>
+  <text class="t2" x="710" y="250" text-anchor="middle">runs · queue</text>
+  <text class="t2" x="710" y="264" text-anchor="middle">8 s · 120 s</text>
+  <!-- LLM -->
+  <rect class="box" x="440" y="30" width="190" height="44" rx="8" style="stroke-dasharray:4 3"/>
+  <text x="535" y="49" text-anchor="middle" font-size="12" font-weight="600">LLM (optional)</text>
+  <text class="t2" x="535" y="65" text-anchor="middle">OpenRouter / Apertus · compile time only</text>
+  <!-- arrows -->
+  <path class="ln" d="M150 175 L210 90"/>
+  <path class="ln" d="M150 190 L210 300"/>
+  <path class="ln" d="M380 80 L440 150"/>
+  <text class="mono" x="395" y="102">REST /v1/*</text>
+  <path class="ln" d="M380 300 L452 253"/>
+  <text class="mono" x="370" y="262">MCP + bearer</text>
+  <path class="ln" d="M630 200 L670 200"/>
+  <text class="mono" x="632" y="192">Bearer key</text>
+  <path class="ln d" d="M535 120 L535 74"/>
+  <path class="ln" d="M535 280 L535 310"/>
+  <text class="mono" x="545" y="298">introspect</text>
+  <path class="ln" d="M150 205 C 300 380, 380 340, 440 340"/>
+  <text class="t2" x="230" y="366">login · consent · confirm · revoke</text>
+</svg>
+</div>
+
+<h2 id="flows">The flow, phase by phase</h2>
+<p>Every phase below names who is involved and the exact calls. The UI-driven flow and the connector-driven flow share phases 1 to 4; the connector only changes who proposes the mandate and who requests the payment.</p>
+
+<section class="phase" id="p0">
+  <h3>Phase 0 · Boot and mode</h3>
+  <div class="who"><span class="tag ui">UI</span><span class="tag svc">Service</span><span class="tag ext">Viseca / replica</span></div>
+  <ol class="steps">
+    <li><div><b>The service starts</b> pointed at one upstream, from the environment. It reads the data pack from <code>../viseca-2026/data</code> and compiles the scenario instructions once per compiler mode, cached, so the IR a customer reviews is the IR that is enforced. The repo pack has five scenarios; since 24 Sept the organizers' API serves ten team-specific ones, whose wording defeats the regex ("CHF 250 in any 7-day window" read as a per-order cap), so <code>make serve-live</code> warms the model-compiled set at start (about 20 s) rather than behind the Live switch on stage.<span class="ep"><code>make serve</code> → replica · <code>make serve-live</code> → Viseca, key from <code>.env</code></span></div></li>
+    <li><div><b>The UI asks whether an engine exists.</b> On load, on pressing Live and whenever the window regains focus. The answer names the upstream, and the header switch shows <b>Live engine</b> (replica) or <b>Live sandbox</b> (Viseca). No answer means Replay only.<span class="ep"><code>GET :8000/healthz</code> → <code>{"upstream": {"mode": "replica" | "live"}}</code></span></div></li>
+    <li><div><b>The UI boots its panels</b> from the scenario list and the decision configuration: check order, concern weights, the settings catalogue that says which check reads each editable rule. <code>mode</code> picks the compiler whose IR comes back: <code>baseline</code> by default (instant, deterministic); the demo asks for <code>auto</code>, the model when a key is present. A model fallback is served labelled in <code>compiler_notes</code> and retried next time.<span class="ep"><code>GET /v1/scenarios?mode=auto|baseline|llm</code> · <code>GET /v1/config</code></span></div></li>
+  </ol>
+</section>
+
+<section class="phase" id="p1">
+  <h3>Phase 1 · Authoring: from a sentence to an enforceable mandate</h3>
+  <div class="who"><span class="tag ui">UI</span><span class="tag svc">Service</span><span class="tag ext">Viseca / replica</span><span class="tag ext">LLM, optional</span></div>
+  <p>This is the only phase where a language model may run, and it runs once. The output is a reviewable <b>Policy IR</b>: hard rules (caps per order and per period, spending hours, merchant requirements), intent facets (what item, what terms) and an uncertainty policy. Every rule carries provenance, the words it came from, so the UI can highlight them and the cardholder can see what will be enforced before agreeing.</p>
+<pre class="seq">
+sequenceDiagram
+  autonumber
+  participant C as Cardholder
+  participant U as Demo UI
+  participant S as Leash service
+  participant L as LLM (optional)
+  participant V as Viseca API / replica
+  C->>U: types the instruction
+  U->>S: POST /v1/mandates/compile {instruction, mode}
+  alt key configured and mode ≠ baseline
+    S->>L: compile to Policy IR (60 s timeout, fallback models)
+    L-->>S: IR draft
+    S->>S: contract guard: no invented rules, no loosening
+  else
+    S->>S: regex baseline compiler
+  end
+  S-->>U: IR with provenance + compiler_notes
+  U-->>C: sentence with every rule span highlighted
+  C->>U: confirm
+  U->>S: POST /v1/mandates {instruction, ir}
+  S->>V: POST /v1/mandates
+  V-->>S: draft_id
+  U->>S: POST /v1/mandates/{draft}/confirm
+  S->>V: POST /v1/mandates/{draft}/confirm
+  V-->>S: mandate_id (active)
+  S-->>U: mandate active, IR frozen
+</pre>
+  <p>The model can only ever add clarity, never permission: the contract guard rejects an IR that invents a rule the instruction doesn't contain or that is looser than the baseline's. Replaying all 45 decisions with model-compiled mandates changes none of them, which is the point.</p>
+</section>
+
+<section class="phase" id="p2">
+  <h3>Phase 2 · Deciding: the run loop</h3>
+  <div class="who"><span class="tag ui">UI</span><span class="tag svc">Service</span><span class="tag ext">Viseca / replica</span></div>
+  <p>A <b>run</b> is one scenario, ten or so proposed purchases, played by the simulator against one mandate. The service pulls each request, decides inside the deadline, pushes the decision back, writes the audit record. The UI never sees the simulator; it watches the service.</p>
+<pre class="seq">
+sequenceDiagram
+  autonumber
+  participant U as Demo UI
+  participant S as Leash service
+  participant V as Viseca API / replica
+  U->>S: POST /v1/runs {scenario_id, mandate_id}
+  S->>V: POST /v1/scenario-runs
+  V-->>S: run_id
+  S-->>U: run_id (the runner thread starts)
+  loop until the platform says complete
+    S->>V: GET /v1/decision-requests/next?wait=25 (long poll)
+    V-->>S: authorization event (merchant, items, amount, device, deadline)
+    S->>S: enrich from ledger + history, run 16 checks, score, deadline guard
+    S->>V: POST /v1/authorizations/{id}/decision {approve|decline|step_up, explanation}
+    S->>S: append audit record, update ledger
+    U->>S: GET /v1/runs/{id} · GET /v1/decisions?run_id=
+    S-->>U: counters, window, each decision with evidence
+  end
+</pre>
+  <ol class="steps">
+    <li><div><b>Enrich.</b> The raw event is joined with what the service already knows: approved spend in each rolling window, prior approvals at this merchant and from this device, whether the merchant is a lookalike of a known one, whether this is a duplicate or a re-quote of an earlier order, night hours and weekdays on the cardholder's own clock (Europe/Zurich), and any manipulation patterns found in merchant text. A card with <b>no history at all</b>, which is every cardholder on the live API, is judged on this run's approvals instead (<code>familiarity_basis: run</code>): the first order at a shop asks (<code>merchant_history_unavailable</code>), the customer's yes makes the shop known for the rest of the run, and a device counts as new only against the run's approved orders.</div></li>
+    <li><div><b>Check.</b> Sixteen deterministic checks run in a fixed order: per-order and period limits, split orders, merchant permitted / type / lookalike, item matches request, item attributes, unrequested add-on, category exclusion, spending hours, duplicate order, order terms, goal fulfilled, session integrity, manipulation detected. Each returns pass, or a concern with a weight and a sentence.</div></li>
+    <li><div><b>Combine.</b> A hard-rule breach is <span class="dec no">decline</span>. Concerns add up to a score; past the threshold the answer is <span class="dec ask">step_up</span>, unless the mandate's uncertainty policy says otherwise. Nothing flagged is <span class="dec ok">approve</span>. Merchant-provided text is data for the checks, never an instruction. Live instructions added, on 24 Sept, what the pack never asked for: a cap written in EUR, GBP or USD is converted to CHF at compile time and enforced there; a price per night is the stay's cap; a named product no category holds (alcohol) is excluded by keyword; "refundable" is a cancellation term; "never at the weekend" is a spending-days rule. Reason codes for these: <code>order_not_cancellable</code>, <code>cancellation_terms_unknown</code>, <code>item_keyword_excluded</code>, <code>outside_spending_days</code>.</div></li>
+    <li><div><b>Guard the deadline.</b> The platform gives 8 s. The evaluator decides in about a millisecond; a reserve keeps the answer inside the window even when the upstream is slow, and a decision that could not be delivered is recorded as such (<code>upstream.submitted</code>) rather than lost.</div></li>
+    <li><div><b>Resume safely.</b> If the service restarts mid-run it rebuilds state from the platform and its own audit trail, so a redelivered event is recognised as the same one and answered idempotently.</div></li>
+  </ol>
+</section>
+
+<section class="phase" id="p3">
+  <h3>Phase 3 · Step-up: the human in the loop</h3>
+  <div class="who"><span class="tag ui">UI · phone</span><span class="tag svc">Service</span><span class="tag ext">Viseca / replica</span></div>
+  <p>A <span class="dec ask">step_up</span> pauses the run on the platform side: nothing more is delivered until the cardholder answers or 120 s pass. This is why the demo shows the agent column freeze exactly where the phone asks. The countdown is the platform's, not the UI's.</p>
+<pre class="seq">
+sequenceDiagram
+  autonumber
+  participant C as Cardholder (phone)
+  participant U as Demo UI
+  participant S as Leash service
+  participant V as Viseca API / replica
+  S->>V: decision step_up + customer_message
+  V->>V: hold the run, start the 120 s window
+  U->>S: GET /v1/step-ups
+  S-->>U: pending: amount, merchant, message, seconds_remaining
+  U-->>C: ask card with countdown
+  alt answered in time
+    C->>U: approve / decline
+    U->>S: POST /v1/step-ups/{id}/resolve {resolution}
+    S->>V: POST /v1/authorizations/{id}/resolve {decision, customer_message}
+    V-->>S: 200, run resumes
+    S->>S: audit: resolved by customer
+  else window expired
+    V->>V: declines the purchase
+    U->>S: resolve (too late)
+    S->>V: resolve
+    V-->>S: 409 authorization_not_pending
+    S-->>U: declined by the platform
+  end
+</pre>
+  <p>An approval is consent to resolve the doubts that were raised, not a blank cheque: the same order, re-proposed, is still checked. The step-up's outcome enters the ledger like any other decision, so a customer-approved CHF 299 counts against the weekly window.</p>
+</section>
+
+<section class="phase" id="p4">
+  <h3>Phase 4 · Staying in control: tighten, widen, revoke</h3>
+  <div class="who"><span class="tag ui">UI · phone</span><span class="tag svc">Service</span><span class="tag ext">Viseca / replica</span></div>
+  <ol class="steps">
+    <li><div><b>Preferences are a standing layer</b> above any mandate: "only electronics from shops I've used", "at least 14 days' return window". They outlive the mandate and combine with it; the effective policy is the strictest of the layers.<span class="ep"><code>GET/PUT /v1/preferences</code> · <code>GET /v1/preferences/candidates</code> suggests them from the card's own history</span></div></li>
+    <li><div><b>Tightening applies at once.</b> Lowering a cap or narrowing a merchant list is patched through to the platform and re-evaluated against the run's pending state. The UI shows the blast radius first: which of the run's orders would change decision.<span class="ep"><code>POST /v1/mandates/{id}/amend</code> → <code>PATCH /v1/mandates/{id}</code> upstream</span></div></li>
+    <li><div><b>Widening is only proposed.</b> A looser rule is never applied by the service on its own; it comes back as a proposal the cardholder must confirm, the same path as phase 1. A request that loosens the uncertainty policy is refused with <code>422</code>.</div></li>
+    <li><div><b>Revoke ends everything.</b> The mandate is deleted upstream, the run stops, every pending step-up is declined, and the audit trail says why.<span class="ep"><code>DELETE /v1/mandates/{id}</code> → <code>DELETE /v1/mandates/{id}</code> upstream</span></div></li>
+  </ol>
+</section>
+
+<section class="phase" id="p5">
+  <h3>Phase 5 · A real agent on the leash: the connector</h3>
+  <div class="who"><span class="tag con">Agent host</span><span class="tag con">Connector · /mcp</span><span class="tag con">Payment App</span><span class="tag svc">Service</span></div>
+  <p>Everything above assumed Viseca's simulator proposes the purchases. The connector replaces the simulator with a real agent, Claude or ChatGPT, and replaces the demo UI with the mock Payment App as the cardholder's phone. The engine underneath is untouched: an agent's order becomes the same authorization event, judged by the same 16 checks, in the same Supervisor tables, so the phone's step-up and activity screens see it.</p>
+<pre class="seq">
+sequenceDiagram
+  autonumber
+  participant A as Agent host (Claude)
+  participant M as Connector /mcp
+  participant P as Payment App /app
+  participant C as Cardholder (phone)
+  participant S as Leash engine
+  Note over A,P: Connect: one URL, OAuth 2.1 with discovery, DCR and PKCE
+  A->>M: POST /mcp (no token)
+  M-->>A: 401 + resource_metadata → authorization server = /app
+  A->>P: POST /register (dynamic client registration)
+  A->>P: GET /authorize (PKCE)
+  P-->>C: LEASH splash → sign in as a persona → 5-step onboarding
+  C->>P: Confirm Leash (the consent)
+  P-->>A: code → POST /token → opaque token {sub, card, client_id, scope}
+  Note over A,S: Use: five tools, three scopes
+  A->>M: propose_mandate(instruction)  [mandate:propose]
+  M->>S: compile + create draft
+  M-->>A: draft, rules, "confirm it in your Payment App"
+  C->>P: Confirm on the phone  [mandate:confirm, app session only]
+  A->>M: request_payment(order)  [payment:request]
+  M->>P: POST /introspect (token live? scope ok?)
+  M->>S: order → authorization event → evaluate
+  M-->>A: approve / decline / pending + explanation in cardholder language
+  C->>P: answer the step-up on the phone  [stepup:resolve, app only]
+  A->>M: payment_status(id)
+  M-->>A: approved
+  C->>P: Manage Leash → Revoke  [agent:revoke, app only]
+  P->>P: token dies, mandate revoked
+  A->>M: any tool
+  M-->>A: 401 access revoked
+</pre>
+  <div class="tbl"><table>
+    <thead><tr><th>Tool</th><th>Scope</th><th>Backed by</th><th>Returns</th></tr></thead>
+    <tbody>
+      <tr><td><code>propose_mandate</code></td><td><code>mandate:propose</code></td><td><code>POST /v1/mandates</code></td><td>draft id, compiled rules with provenance, waiting for the cardholder</td></tr>
+      <tr><td><code>whats_allowed</code></td><td><code>activity:read</code></td><td>mandate + ledger</td><td>active rules in plain language, remaining budget, hours</td></tr>
+      <tr><td><code>request_payment</code></td><td><code>payment:request</code></td><td><code>POST /v1/decide</code></td><td>approve / decline / pending, explanation, trust score</td></tr>
+      <tr><td><code>payment_status</code></td><td><code>payment:request</code></td><td>step-ups + audit</td><td>resolved decision, or seconds left</td></tr>
+      <tr><td><code>recent_activity</code></td><td><code>activity:read</code></td><td><code>GET /v1/decisions</code></td><td>the last N decisions as the cardholder reads them</td></tr>
+    </tbody>
+  </table></div>
+  <p>The scopes the agent can never hold, <code>mandate:confirm</code>, <code>stepup:resolve</code>, <code>mandate:amend</code>, <code>mandate:revoke</code>, <code>agent:revoke</code>, exist only for the app's own session. That is what makes the consent sentence, <em>"Claude can never approve its own requests, confirm a mandate, or change your limits"</em>, true by construction. Step-ups stay out of band on purpose: MCP could ask the agent to ask the user, but then the agent would mediate the question. Tokens are checked by introspection rather than as signed JWTs so that Revoke is immediate: the token dies at its source and the agent's next call is a 401.</p>
+</section>
+
+<h2 id="modes">Three ways to run it</h2>
+<p>The header switch in the demo UI names what the engine is pointed at. The engine's own health endpoint is the source of truth.</p>
+<div class="tbl"><table>
+  <thead><tr><th>Mode</th><th>Engine</th><th>Upstream</th><th>Start</th><th>When</th></tr></thead>
+  <tbody>
+    <tr><td><b>Replay</b></td><td>none</td><td>none</td><td><code>./serve.py</code> only</td><td>Always works. 45 recorded decisions. The fallback if the venue Wi-Fi dies.</td></tr>
+    <tr><td><b>Live engine</b></td><td><code>:8000</code>, <code>mode: replica</code></td><td>replica <code>:8099</code></td><td><code>make sandbox</code> + <code>make serve</code></td><td>Real decisions in real time, fully offline. Same 45 answers as the baseline.</td></tr>
+    <tr><td><b>Live sandbox</b></td><td><code>:8000</code>, <code>mode: live</code></td><td>Viseca API (Azure)</td><td><code>make probe-live</code> then <code>make serve-live</code></td><td>The real platform: ten team-specific scenarios, one run per team at a time, a pending step-up holds the whole queue. Every cardholder there has no history, so expect about two step-ups per scenario and answer them on the phone. Rehearsed 25 Sept: all ten, 111 decisions, 29 answers, every run completed.</td></tr>
+    <tr><td><b>Connector</b></td><td><code>:8010</code></td><td>replica, or Viseca with <code>--live</code></td><td><code>make connect</code></td><td>A real agent through <code>/mcp</code>; the phone at <code>/app/</code>. Its own port so it runs beside the others.</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="principles">Design principles the flow enforces</h2>
+<div class="principles">
+  <div><b>Decoupled by contract</b>The UI ↔ engine HTTP contract is a spec and a Postman collection; either side can be replaced. Viseca can drop the engine behind their app.</div>
+  <div><b>No model in the decision path</b>The LLM compiles policy, once, and can be absent. Decisions are deterministic rules over facts, so they are explainable, fast and reproducible.</div>
+  <div><b>Predictable under failure</b>Model down → baseline compiler. Upstream slow → deadline guard. Service restart → resume from audit. Wi-Fi gone → replica and Replay.</div>
+  <div><b>Merchant text is untrusted</b>Item names, descriptions and messages feed the manipulation check as data. An injection corpus in the tests keeps it that way.</div>
+  <div><b>Nothing hard-coded</b>No decision depends on scenario name, request id or position; a test asserts it. The same engine judges the pack's personas and a real agent's orders.</div>
+  <div><b>Consent never passes through the agent</b>Confirm, resolve, amend, revoke belong to the cardholder's session only, in the UI and in the connector's scopes alike.</div>
+  <div><b>Every decision explains itself</b>One audit record per decision: policy in force, evidence considered, checks that fired, timing, whether the platform received it.</div>
+  <div><b>State lives in one place</b>The service owns the ledger, runs and step-ups. The UI and the connector read; the platform is the clock.</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.6.0/mermaid.min.js"></script>
+<script>
+(function(){
+  if(!window.mermaid){return;}
+  var root=document.documentElement;
+  var dark=root.getAttribute('data-theme')==='dark'||(root.getAttribute('data-theme')!=='light'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);
+  mermaid.initialize({startOnLoad:false,theme:dark?'dark':'neutral',securityLevel:'loose',fontFamily:'"IBM Plex Sans",system-ui,sans-serif',sequence:{useMaxWidth:true,actorMargin:34,messageMargin:28}});
+  var nodes=Array.prototype.slice.call(document.querySelectorAll('pre.seq'));
+  nodes.forEach(function(n){n.textContent=n.textContent.trim();});
+  try{mermaid.run({nodes:nodes});}catch(e){}
+})();
+</script>
+<footer>Built from <code>wallet-control-layer/specs/</code> (decision-rules, service-contract, policy-ir, llm-compiler, connector), the component READMEs and the code as of 25 Sept 2026. Normative source for decision semantics: <code>specs/decision-rules.md</code>.</footer>
+</div>
+
+</body></html>

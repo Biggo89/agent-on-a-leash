@@ -1,0 +1,167 @@
+# Language-neutral vectors for the merchant_permitted check.
+# Spec: specs/check-merchant-permitted.md
+suite: merchant_permitted
+check: merchant_permitted
+cases:
+  - name: no familiarity facet means the check does not apply
+    facets: []
+    merchant_prior_approvals: 0
+    expect_verdict: not_applicable
+    expect_reason: null
+    note: >
+      SCEN0002 requires a specialist sports retailer, not a familiar one. AU0023 has zero
+      prior approvals and is fully compliant — declining it would be over-blocking.
+
+  - name: familiar merchant passes
+    facets: [{kind: merchant_familiarity, require: {prior_approvals_min: 1}}]
+    merchant_prior_approvals: 26
+    expect_verdict: pass
+    expect_reason: merchant_familiar
+
+  - name: exactly at the minimum passes (boundary)
+    facets: [{kind: merchant_familiarity, require: {prior_approvals_min: 1}}]
+    merchant_prior_approvals: 1
+    expect_verdict: pass
+    expect_reason: merchant_familiar
+    note: '"used before" is satisfied by meeting the minimum, not by exceeding it.'
+
+  - name: zero prior approvals is a violation
+    facets: [{kind: merchant_familiarity, require: {prior_approvals_min: 1}}]
+    merchant_prior_approvals: 0
+    merchant_name: RainThread
+    expect_verdict: violation
+    expect_reason: merchant_not_permitted
+    note: AU0033 — a clean session does not suspend the customer's stated merchant rule.
+
+  - name: below a raised minimum is a violation
+    facets: [{kind: merchant_familiarity, require: {prior_approvals_min: 3}}]
+    merchant_prior_approvals: 2
+    expect_verdict: violation
+    expect_reason: merchant_not_permitted
+    note: The minimum is configurable; the customer can tighten it.
+
+  - name: missing prior_approvals_min defaults to 1
+    facets: [{kind: merchant_familiarity, require: {}}]
+    merchant_prior_approvals: 1
+    expect_verdict: pass
+    expect_reason: merchant_familiar
+
+  - name: cross-border familiar seller still passes
+    facets: [{kind: merchant_familiarity, require: {prior_approvals_min: 1}}]
+    merchant_prior_approvals: 21
+    merchant_name: HarborByte
+    merchant_country: US
+    expect_verdict: pass
+    expect_reason: merchant_familiar
+    note: AU0038 — 450 USD at a US seller looks alarming but has 21 prior approvals.
+
+  # --- card or person (specs/check-merchant-permitted.md §"Card or person") ---
+
+  - name: unfamiliar on this card but used on another of the customer's cards asks (AU0044)
+    facets: [{kind: merchant_familiarity, require: {prior_approvals_min: 1}}]
+    merchant_prior_approvals: 0
+    merchant_prior_approvals_customer: 2
+    merchant_name: Circuit and Pine
+    expect_verdict: unknown
+    expect_reason: merchant_familiarity_ambiguous
+    expect_evidence_contains: merchant_prior_approvals_customer=2
+    expect_detail_contains: but on a different card
+    note: >
+      CA0039 has never bought at ME0023; sibling card CA0038 has twice. "Shops I have used
+      before" is about the person, so this is genuinely ambiguous and the customer's own
+      "ask me when uncertain" settles it. Never a pass — reading the person's history as
+      permission would silently widen the rule they stated.
+
+  - name: unfamiliar on every card the customer holds stays a violation
+    facets: [{kind: merchant_familiarity, require: {prior_approvals_min: 1}}]
+    merchant_prior_approvals: 0
+    merchant_prior_approvals_customer: 0
+    merchant_name: RainThread
+    expect_verdict: violation
+    expect_reason: merchant_not_permitted
+    note: >
+      AU0033. Neither of CU0012's cards has bought at ME0026, so there is no ambiguity to
+      resolve and the stated rule is simply not met.
+
+  - name: a familiar card is never overridden by the person-level count
+    facets: [{kind: merchant_familiarity, require: {prior_approvals_min: 1}}]
+    merchant_prior_approvals: 26
+    merchant_prior_approvals_customer: 26
+    expect_verdict: pass
+    expect_reason: merchant_familiar
+
+  - name: the person clearing a higher minimum the card misses also asks
+    facets: [{kind: merchant_familiarity, require: {prior_approvals_min: 3}}]
+    merchant_prior_approvals: 1
+    merchant_prior_approvals_customer: 5
+    expect_verdict: unknown
+    expect_reason: merchant_familiarity_ambiguous
+    note: The ambiguity is about the unit of counting, not about zero in particular.
+
+  - name: neither card nor person clears a higher minimum
+    facets: [{kind: merchant_familiarity, require: {prior_approvals_min: 3}}]
+    merchant_prior_approvals: 1
+    merchant_prior_approvals_customer: 2
+    expect_verdict: violation
+    expect_reason: merchant_not_permitted
+
+  # --- no history at all (specs/check-merchant-permitted.md §"No history at all") ---
+  # The live API's cardholders have no row in the history file. Their counts come from this
+  # run's own approvals, and the builder marks that with familiarity_basis: run.
+
+  - name: a card with no history asks about a shop not yet approved in this run
+    facets: [{kind: merchant_familiarity, require: {prior_approvals_min: 1}}]
+    familiarity_basis: run
+    run_approvals: 0
+    merchant_prior_approvals: 0
+    merchant_name: LensTrail
+    expect_verdict: unknown
+    expect_reason: merchant_history_unavailable
+    expect_evidence_contains: familiarity_basis=run
+    expect_detail_contains: no purchase history
+    note: >
+      Live SCEN0122 declined every lens under CHF 900 as merchant_not_permitted, because an
+      empty file read as "never bought there". Silence is not evidence; the customer's own
+      "ask me when uncertain" settles it.
+
+  - name: a shop approved earlier in this run passes on a card with no history
+    facets: [{kind: merchant_familiarity, require: {prior_approvals_min: 1}}]
+    familiarity_basis: run
+    run_approvals: 1
+    merchant_prior_approvals: 1
+    merchant_name: LensTrail
+    expect_verdict: pass
+    expect_reason: merchant_familiar
+    expect_evidence_contains: familiarity_basis=run
+    expect_detail_contains: already bought from in this session
+    note: The customer's first yes at a shop is evidence the shop is theirs.
+
+  - name: another shop still asks after one was approved in this run, never declines
+    facets: [{kind: merchant_familiarity, require: {prior_approvals_min: 1}}]
+    familiarity_basis: run
+    run_approvals: 3
+    merchant_prior_approvals: 0
+    merchant_name: Silver Works
+    expect_verdict: unknown
+    expect_reason: merchant_history_unavailable
+    note: >
+      A run's approvals show some of the shops a person uses, never all of them, so they
+      cannot prove "never bought there" either. The decline stays the customer's to give.
+
+  - name: a raised minimum counts run approvals the same way
+    facets: [{kind: merchant_familiarity, require: {prior_approvals_min: 2}}]
+    familiarity_basis: run
+    run_approvals: 1
+    merchant_prior_approvals: 1
+    expect_verdict: unknown
+    expect_reason: merchant_history_unavailable
+
+  - name: a card with history keeps the violation (the no-history rule does not leak)
+    facets: [{kind: merchant_familiarity, require: {prior_approvals_min: 1}}]
+    familiarity_basis: history
+    merchant_prior_approvals: 0
+    merchant_prior_approvals_customer: 0
+    merchant_name: RainThread
+    expect_verdict: violation
+    expect_reason: merchant_not_permitted
+    expect_detail_excludes: no purchase history

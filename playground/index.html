@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wallet Control Layer — Playground</title>
+  <meta name="description" content="An interactive walkthrough of the Wallet Control Layer: how an AI shopping agent's purchases are approved, declined, or sent to the customer. Two views — one for non-developers, one for the codebase.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">Wallet Control Layer</span>
+    <span class="brand-sub">Agent on a Leash · Viseca · Swiss {ai} Weeks 2026</span>
+  </div>
+
+  <div class="topbar-spacer"></div>
+
+  <div class="viewswitch" role="tablist" aria-label="Choose a view">
+    <button data-view="guided" role="tab" aria-selected="true">How it works</button>
+    <button data-view="eng" role="tab" aria-selected="false">Engineering</button>
+  </div>
+
+  <button class="iconbtn" id="theme" aria-label="Switch between light and dark">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"></path>
+    </svg>
+  </button>
+</header>
+
+<div class="shell">
+  <aside class="rail">
+    <div class="rail-title" id="rail-title">How it works</div>
+    <nav id="rail-nav" aria-label="Sections"></nav>
+  </aside>
+
+  <main>
+    <div class="view" id="view-guided" role="tabpanel" aria-label="How it works"></div>
+    <div class="view" id="view-eng" role="tabpanel" aria-label="Engineering reference" hidden></div>
+  </main>
+</div>
+
+<footer class="footer">
+  <span><b><span id="board-count">45</span></b> decisions, replayed from the real engine</span>
+  <span>Verified identical to <b>out/baseline.json</b></span>
+  <span>Data pack: <b>viseca-2026</b>, read-only</span>
+  <span>Regenerate with <b>python tools/generate_data.py</b></span>
+</footer>
+
+<script src="assets/data.js"></script>
+<script src="assets/content.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

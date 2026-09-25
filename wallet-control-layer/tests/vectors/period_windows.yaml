@@ -1,0 +1,160 @@
+# Language-neutral vectors for multi-window period enforcement.
+# Spec: specs/decision-rules.md §2.1 and §9
+#
+# A mandate may carry more than one period rule and EVERY one is enforced. The windows are
+# independent — 7 days alone permits 1200 in a month, 30 days alone permits 1000 in an
+# afternoon — so neither can be dropped in favour of the other. Within a window the tightest
+# cap binds, exactly as for `purchase`; across windows nothing binds anything.
+#
+# `windows` is what enrichment computed, as {period_days: approved spend in that window}.
+# A rule whose window is missing from it is `unknown`, never zero: a missing figure that
+# reads as "nothing spent yet" approves everything.
+suite: period_windows
+cases:
+  # ----------------------------------------------------------------- the single-window case
+
+  - name: no period rule at all
+    note: An absent cap is not a cap of zero.
+    hard_rules: []
+    windows: {}
+    billing_amount_chf: "80.00"
+    expect_verdicts: [not_applicable]
+
+  - name: one window, inside it
+    hard_rules: [{field: billing_amount_chf, operator: "<=", value: 300, scope: period, period_days: 7}]
+    windows: {7: "44.50"}
+    billing_amount_chf: "80.00"
+    expect_verdicts: [pass]
+    expect_reasons: [within_period_limit]
+    expect_detail_contains: "CHF 124.50 of CHF 300.00 across 7 days"
+
+  - name: one window, the projected total exceeds it
+    hard_rules: [{field: billing_amount_chf, operator: "<=", value: 300, scope: period, period_days: 7}]
+    windows: {7: "255.00"}
+    billing_amount_chf: "80.00"
+    expect_verdicts: [violation]
+    expect_reasons: [period_limit_exceeded]
+    expect_detail_contains: "would exceed the CHF 300.00 limit across 7 days"
+
+  - name: boundary — exactly the limit passes
+    note: '"at or below CHF 300" is <=, so landing on it is inside.'
+    hard_rules: [{field: billing_amount_chf, operator: "<=", value: 300, scope: period, period_days: 7}]
+    windows: {7: "220.00"}
+    billing_amount_chf: "80.00"
+    expect_verdicts: [pass]
+    expect_reasons: [within_period_limit]
+
+  # ----------------------------------------------------------------- two windows
+
+  - name: two windows, inside both
+    hard_rules:
+      - {field: billing_amount_chf, operator: "<=", value: 300, scope: period, period_days: 7}
+      - {field: billing_amount_chf, operator: "<=", value: 1000, scope: period, period_days: 30}
+    windows: {7: "100.00", 30: "600.00"}
+    billing_amount_chf: "50.00"
+    expect_verdicts: [pass, pass]
+    expect_reasons: [within_period_limit, within_period_limit]
+
+  - name: inside the week, over the month
+    note: >
+      THE CASE THIS SUITE EXISTS FOR. Before multi-window enrichment the shortest window
+      displaced the longest, so this approved — an add-only PATCH adding the weekly rule
+      deleted the monthly ceiling. Measured against the engine on 2026-09-21.
+    hard_rules:
+      - {field: billing_amount_chf, operator: "<=", value: 500, scope: period, period_days: 7}
+      - {field: billing_amount_chf, operator: "<=", value: 1000, scope: period, period_days: 30}
+    windows: {7: "400.00", 30: "1200.00"}
+    billing_amount_chf: "50.00"
+    expect_verdicts: [pass, violation]
+    expect_reasons: [within_period_limit, period_limit_exceeded]
+    expect_detail_contains: "across 30 days"
+
+  - name: over the week, inside the month
+    hard_rules:
+      - {field: billing_amount_chf, operator: "<=", value: 300, scope: period, period_days: 7}
+      - {field: billing_amount_chf, operator: "<=", value: 1000, scope: period, period_days: 30}
+    windows: {7: "280.00", 30: "400.00"}
+    billing_amount_chf: "50.00"
+    expect_verdicts: [violation, pass]
+    expect_reasons: [period_limit_exceeded, within_period_limit]
+
+  - name: over both — each window is reported on its own
+    hard_rules:
+      - {field: billing_amount_chf, operator: "<=", value: 300, scope: period, period_days: 7}
+      - {field: billing_amount_chf, operator: "<=", value: 1000, scope: period, period_days: 30}
+    windows: {7: "290.00", 30: "990.00"}
+    billing_amount_chf: "50.00"
+    expect_verdicts: [violation, violation]
+    expect_reasons: [period_limit_exceeded, period_limit_exceeded]
+
+  - name: results come in ascending window order, whatever the rule order
+    note: Determinism — §7 forbids an outcome that depends on the order of a JSON list.
+    hard_rules:
+      - {field: billing_amount_chf, operator: "<=", value: 1000, scope: period, period_days: 30}
+      - {field: billing_amount_chf, operator: "<=", value: 300, scope: period, period_days: 7}
+    windows: {7: "290.00", 30: "400.00"}
+    billing_amount_chf: "50.00"
+    expect_verdicts: [violation, pass]
+    expect_window_order: [7, 30]
+
+  # ----------------------------------------------------------------- tightest within a window
+
+  - name: within one window the tightest cap binds
+    note: Same rule as `purchase` — a customer who narrowed their weekly cap added a rule.
+    hard_rules:
+      - {field: billing_amount_chf, operator: "<=", value: 300, scope: period, period_days: 7}
+      - {field: billing_amount_chf, operator: "<=", value: 200, scope: period, period_days: 7}
+    windows: {7: "180.00"}
+    billing_amount_chf: "50.00"
+    expect_verdicts: [violation]
+    expect_reasons: [period_limit_exceeded]
+    expect_detail_contains: "CHF 200.00"
+
+  - name: two rules on one window produce one result, not two
+    hard_rules:
+      - {field: billing_amount_chf, operator: "<=", value: 300, scope: period, period_days: 7}
+      - {field: billing_amount_chf, operator: "<=", value: 200, scope: period, period_days: 7}
+    windows: {7: "10.00"}
+    billing_amount_chf: "50.00"
+    expect_verdicts: [pass]
+
+  # ----------------------------------------------------------------- the unknown cases
+
+  - name: a window enrichment did not compute is unknown, never zero
+    note: >
+      A missing figure read as "nothing spent yet" approves everything. This is the guard that
+      replaces the old "enrichment and the check must make the same selection" rule.
+    hard_rules:
+      - {field: billing_amount_chf, operator: "<=", value: 1000, scope: period, period_days: 30}
+    windows: {7: "100.00"}
+    billing_amount_chf: "50.00"
+    expect_verdicts: [unknown]
+    expect_reasons: [insufficient_evidence]
+
+  - name: a period rule with no window is unknown
+    note: >
+      It is not a window. Before this it scored 0 days, won the shortest-window contest and
+      disabled period enforcement outright — a weekly CHF 300 ceiling silently became a
+      per-order CHF 1000 one.
+    hard_rules: [{field: billing_amount_chf, operator: "<=", value: 1000, scope: period}]
+    windows: {7: "100.00"}
+    billing_amount_chf: "50.00"
+    expect_verdicts: [unknown]
+    expect_reasons: [insufficient_evidence]
+
+  - name: a window of zero days is unknown
+    hard_rules: [{field: billing_amount_chf, operator: "<=", value: 1000, scope: period, period_days: 0}]
+    windows: {}
+    billing_amount_chf: "50.00"
+    expect_verdicts: [unknown]
+    expect_reasons: [insufficient_evidence]
+
+  - name: one good window and one malformed rule — the good one still decides
+    note: A broken rule must not take the enforceable one down with it.
+    hard_rules:
+      - {field: billing_amount_chf, operator: "<=", value: 300, scope: period, period_days: 7}
+      - {field: billing_amount_chf, operator: "<=", value: 1000, scope: period}
+    windows: {7: "290.00"}
+    billing_amount_chf: "50.00"
+    expect_verdicts: [violation, unknown]
+    expect_reasons: [period_limit_exceeded, insufficient_evidence]

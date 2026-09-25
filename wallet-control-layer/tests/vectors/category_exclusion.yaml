@@ -1,0 +1,180 @@
+# Language-neutral vectors for the category deny-list.
+# Spec: specs/check-category-exclusion.md
+#
+# `merchant_type` is an allow-list; the complement of "no gift cards" is the other twenty-one
+# categories, which is absurd to write and wrong the moment the vocabulary grows. A deny-list
+# is the only shape under which "everything except this" stays correct.
+#
+# Two independent dimensions, so one result per dimension the facet states — merchant first,
+# then item, whatever order the require keys arrived in.
+suite: category_exclusion
+check: category_exclusion
+cases:
+  - name: no facet means the customer excluded nothing
+    facets: []
+    merchant_category: groceries
+    items: [{item_category: gift_card, name: Gift voucher}]
+    expect_verdicts: [not_applicable]
+    expect_reasons: []
+
+  - name: an item category the customer excluded
+    note: CU0001 — "avoids gift vouchers". The profile says it; no instruction ever does.
+    facets: [{kind: category_exclusion, require: {item_category_not_in: [gift_card]}}]
+    merchant_category: groceries
+    items: [{item_category: gift_card, name: Gift voucher}]
+    expect_verdicts: [violation]
+    expect_reasons: [item_category_excluded]
+    expect_detail_contains: gift card
+
+  - name: one excluded line among many is still a violation
+    note: >
+      A basket nine-tenths groceries and one-tenth gift voucher still contains a gift voucher.
+      Same boundary as unrequested_addon, which also fires on one line.
+    facets: [{kind: category_exclusion, require: {item_category_not_in: [gift_card]}}]
+    merchant_category: groceries
+    items:
+      - {item_category: groceries, name: Fresh produce}
+      - {item_category: groceries, name: Bread}
+      - {item_category: gift_card, name: Gift voucher}
+    expect_verdicts: [violation]
+    expect_reasons: [item_category_excluded]
+
+  - name: nothing in the cart is excluded
+    facets: [{kind: category_exclusion, require: {item_category_not_in: [gift_card]}}]
+    merchant_category: groceries
+    items: [{item_category: groceries, name: Fresh produce}]
+    expect_verdicts: [pass]
+    expect_reasons: [categories_permitted]
+
+  - name: a merchant category the customer excluded
+    facets: [{kind: category_exclusion, require: {merchant_category_not_in: [cash_withdrawal]}}]
+    merchant_category: cash_withdrawal
+    items: [{item_category: groceries, name: Fresh produce}]
+    expect_verdicts: [violation]
+    expect_reasons: [merchant_category_excluded]
+
+  - name: the merchant is fine
+    facets: [{kind: category_exclusion, require: {merchant_category_not_in: [cash_withdrawal]}}]
+    merchant_category: groceries
+    items: [{item_category: groceries, name: Fresh produce}]
+    expect_verdicts: [pass]
+    expect_reasons: [categories_permitted]
+
+  - name: both dimensions stated, both clean
+    facets:
+      - kind: category_exclusion
+        require: {merchant_category_not_in: [cash_withdrawal], item_category_not_in: [gift_card]}
+    merchant_category: groceries
+    items: [{item_category: groceries, name: Fresh produce}]
+    expect_verdicts: [pass, pass]
+    expect_reasons: [categories_permitted, categories_permitted]
+
+  - name: both dimensions stated, both breached — two findings, not one
+    note: Reporting them as one would hide half of it.
+    facets:
+      - kind: category_exclusion
+        require: {merchant_category_not_in: [cash_withdrawal], item_category_not_in: [gift_card]}
+    merchant_category: cash_withdrawal
+    items: [{item_category: gift_card, name: Gift voucher}]
+    expect_verdicts: [violation, violation]
+    expect_reasons: [merchant_category_excluded, item_category_excluded]
+
+  - name: merchant first, then item, whatever order the keys arrived in
+    note: Determinism — §7 forbids an outcome that depends on the order of a JSON object.
+    facets:
+      - kind: category_exclusion
+        require: {item_category_not_in: [gift_card], merchant_category_not_in: [cash_withdrawal]}
+    merchant_category: cash_withdrawal
+    items: [{item_category: groceries, name: Fresh produce}]
+    expect_verdicts: [violation, pass]
+    expect_reasons: [merchant_category_excluded, categories_permitted]
+
+  # ----------------------------------------------------------------- the unknown cases
+
+  - name: a facet stating nothing is unknown, not a pass
+    note: An unresolved requirement must never silently approve.
+    facets: [{kind: category_exclusion, require: {}}]
+    merchant_category: groceries
+    items: [{item_category: groceries, name: Fresh produce}]
+    expect_verdicts: [unknown]
+    expect_reasons: [insufficient_evidence]
+
+  - name: an exclusion in force and no merchant category to compare
+    facets: [{kind: category_exclusion, require: {merchant_category_not_in: [cash_withdrawal]}}]
+    merchant_category: ""
+    items: [{item_category: groceries, name: Fresh produce}]
+    expect_verdicts: [unknown]
+    expect_reasons: [insufficient_evidence]
+
+  - name: an item exclusion in force and an empty cart
+    facets: [{kind: category_exclusion, require: {item_category_not_in: [gift_card]}}]
+    merchant_category: groceries
+    items: []
+    expect_verdicts: [unknown]
+    expect_reasons: [insufficient_evidence]
+
+  - name: an item exclusion in force and no line carries a category
+    facets: [{kind: category_exclusion, require: {item_category_not_in: [gift_card]}}]
+    merchant_category: groceries
+    items: [{item_category: "", name: Something}]
+    expect_verdicts: [unknown]
+    expect_reasons: [insufficient_evidence]
+
+  # --- product words (specs/check-category-exclusion.md §"Product words") ---
+  # Live SCEN0117: "Groceries and everyday household items only … No alcohol, no gift cards,
+  # no cosmetics." The live pack files "Wine and spirits" under groceries, so no category can
+  # exclude it. Matched on item_name tokens, each entry a phrase whose words must all appear.
+
+  - name: wine is excluded by name though its category is groceries
+    facets: [{kind: category_exclusion, require: {item_keywords_none: [wine, spirits, beer]}}]
+    merchant_category: groceries
+    items: [{item_category: groceries, item_name: Wine and spirits}]
+    expect_verdicts: [violation]
+    expect_reasons: [item_keyword_excluded]
+    expect_detail_contains: Wine and spirits
+
+  - name: soft drinks are not alcohol
+    facets: [{kind: category_exclusion, require: {item_keywords_none: [wine, spirits, beer]}}]
+    merchant_category: groceries
+    items: [{item_category: groceries, item_name: Drinks and snacks}]
+    expect_verdicts: [pass]
+    expect_reasons: [categories_permitted]
+    note: >
+      "Soft drinks, snacks, and party supplies" (IT0166). A lexicon that listed "drinks" would
+      decline an ordinary grocery order.
+
+  - name: one excluded line in a grocery basket is still a violation
+    facets: [{kind: category_exclusion, require: {item_keywords_none: [wine, spirits]}}]
+    merchant_category: groceries
+    items:
+      - {item_category: groceries, item_name: Bakery and dairy order}
+      - {item_category: groceries, item_name: Wine and spirits}
+    expect_verdicts: [violation]
+    expect_reasons: [item_keyword_excluded]
+
+  - name: every word of a phrase must be in one name
+    facets: [{kind: category_exclusion, require: {item_keywords_none: [wine spirits]}}]
+    merchant_category: groceries
+    items: [{item_category: groceries, item_name: Bakery and dairy order}]
+    expect_verdicts: [pass]
+    expect_reasons: [categories_permitted]
+
+  - name: categories and product words are reported separately, merchant then item then words
+    facets:
+      - kind: category_exclusion
+        require:
+          item_category_not_in: [gift_card, cosmetics]
+          item_keywords_none: [wine, spirits]
+    merchant_category: groceries
+    items:
+      - {item_category: gift_card, item_name: Prepaid gift card}
+      - {item_category: groceries, item_name: Wine and spirits}
+    expect_verdicts: [violation, violation]
+    expect_reasons: [item_category_excluded, item_keyword_excluded]
+
+  - name: a cart with no names cannot be cleared of an excluded product
+    facets: [{kind: category_exclusion, require: {item_keywords_none: [wine]}}]
+    merchant_category: groceries
+    items: [{item_category: groceries}]
+    expect_verdicts: [unknown]
+    expect_reasons: [insufficient_evidence]

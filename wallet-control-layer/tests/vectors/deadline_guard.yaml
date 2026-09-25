@@ -1,0 +1,66 @@
+# Language-neutral conformance vectors. A port to another language must pass these
+# unchanged — they are the portability contract (AGENTS.md §3.4).
+suite: deadline_guard
+spec: specs/deadline-guard.md
+note: >
+  The one place in the engine where the real clock affects an outcome. Times are given as
+  a budget in milliseconds so the vectors carry no wall-clock dependency of their own.
+reserve_ms: 1500
+cases:
+  - name: a full budget evaluates normally
+    budget_ms: 8000
+    uncertainty_policy: ask
+    expect_at_risk: false
+
+  - name: comfortably above the reserve
+    budget_ms: 1501
+    uncertainty_policy: ask
+    expect_at_risk: false
+
+  - name: exactly at the reserve still evaluates
+    budget_ms: 1500
+    uncertainty_policy: ask
+    expect_at_risk: false
+    note: Boundary is >=. The reserve covers the submit, so spending it on the evaluation
+      we were asked for is the better use.
+
+  - name: one millisecond under the reserve trips the guard
+    budget_ms: 1499
+    uncertainty_policy: ask
+    expect_at_risk: true
+    expect_decision: step_up
+
+  - name: policy decline turns a tight budget into a decline
+    budget_ms: 200
+    uncertainty_policy: decline
+    expect_at_risk: true
+    expect_decision: decline
+
+  - name: policy approve is floored at a question — nothing was evaluated
+    budget_ms: 200
+    uncertainty_policy: approve
+    expect_at_risk: true
+    expect_decision: step_up
+    note: >
+      "Approve when unsure" resolves a doubt about the purchase in the agent's favour. A
+      spent deadline is not a doubt — no check ran at all — so the floor keeps the decision
+      with the customer rather than handing it to the agent by default.
+
+  - name: past the deadline still emits a decision
+    budget_ms: -2500
+    uncertainty_policy: ask
+    expect_at_risk: true
+    expect_decision: step_up
+    note: The platform answers a late decision with 408. A recorded, explained decision that
+      the platform refuses beats no decision at all.
+
+  - name: an unknown uncertainty policy falls back to asking
+    budget_ms: 0
+    uncertainty_policy: nonsense
+    expect_at_risk: true
+    expect_decision: step_up
+
+  - name: no deadline on the event disables the guard
+    budget_ms: null
+    uncertainty_policy: ask
+    expect_at_risk: false

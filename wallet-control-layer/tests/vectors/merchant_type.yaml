@@ -1,0 +1,63 @@
+# Language-neutral vectors for the merchant_type check.
+# Spec: specs/check-merchant-type.md
+suite: merchant_type
+check: merchant_type
+cases:
+  - name: no merchant_type facet means the check does not apply
+    facets: []
+    merchant_category: sustainable_goods
+    expect_verdict: not_applicable
+    expect_reason: null
+    note: SCEN0000/0001/0003/0004 state no retailer-type requirement.
+
+  - name: allowed category passes
+    facets: [{kind: merchant_type, require: {merchant_category_in: [sporting_goods]}}]
+    merchant_category: sporting_goods
+    merchant_mcc: "5941"
+    merchant_name: TrailSpark
+    expect_verdict: pass
+    expect_reason: merchant_meets_requirement
+    expect_evidence_contains: merchant_mcc=5941
+
+  - name: unfamiliar merchant of the right type still passes (AU0023)
+    facets: [{kind: merchant_type, require: {merchant_category_in: [sporting_goods]}}]
+    merchant_category: sporting_goods
+    merchant_name: Summit Thread
+    merchant_prior_approvals: 0
+    expect_verdict: pass
+    expect_reason: merchant_meets_requirement
+    note: >
+      The instruction asks for a specialist sports retailer, not a familiar one. Familiarity
+      is merchant_permitted's business, and SCEN0002 states no familiarity requirement.
+
+  - name: wrong category is a violation (AU0022)
+    facets: [{kind: merchant_type, require: {merchant_category_in: [sporting_goods]}}]
+    merchant_category: sustainable_goods
+    merchant_mcc: "5399"
+    merchant_name: GreenLoop
+    expect_verdict: violation
+    expect_reason: merchant_type_not_permitted
+    expect_follow_up: A sporting goods shop would meet your instruction.
+    expect_evidence_contains: merchant_category=sustainable_goods
+    note: >
+      GreenLoop shares MCC 5399 with ordinary household merchants, which is why the category
+      vocabulary and not the MCC is the matching key in this pack.
+
+  - name: any one of several allowed categories passes
+    facets: [{kind: merchant_type, require: {merchant_category_in: [sporting_goods, clothing]}}]
+    merchant_category: clothing
+    expect_verdict: pass
+    expect_reason: merchant_meets_requirement
+
+  - name: a facet with no allowed list is uncertainty, not a pass
+    facets: [{kind: merchant_type, require: {}}]
+    merchant_category: sporting_goods
+    expect_verdict: unknown
+    expect_reason: merchant_type_unknown
+    note: An unresolved requirement must never silently approve.
+
+  - name: a merchant with no category is uncertainty, not a violation
+    facets: [{kind: merchant_type, require: {merchant_category_in: [sporting_goods]}}]
+    merchant_category: ""
+    expect_verdict: unknown
+    expect_reason: merchant_type_unknown

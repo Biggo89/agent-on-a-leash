@@ -1,0 +1,168 @@
+# Language-neutral vectors for the stated spending-hours rule.
+# Spec: specs/check-spending-hours.md
+#
+# NOT the `unusual_hour` concern. That is our inference about risk, fixed at 00:00-05:00,
+# weight 1.0, always on. This is a rule the customer wrote, over hours they chose, and a
+# stated rule that only raised a concern could be outvoted by the threshold.
+#
+# `hours_from` is inclusive and `hours_to` exclusive — the same half-open convention as the
+# rolling window, because picking the other one for either makes the two rules disagree about
+# what "until" means. Hours are UTC, off the SIMULATED clock, so a replay decides the same way
+# at midnight as at noon.
+suite: spending_hours
+check: spending_hours
+cases:
+  - name: no facet means no time restriction
+    facets: []
+    timestamp: "2026-08-15T03:00:00Z"
+    expect_verdicts: [not_applicable]
+    expect_reasons: []
+
+  # ----------------------------------------------------------------- an ordinary window
+
+  - name: inside a daytime window
+    facets: [{kind: spending_hours, require: {hours_from: 7, hours_to: 22}}]
+    timestamp: "2026-08-15T12:00:00Z"
+    expect_verdicts: [pass]
+    expect_reasons: [within_spending_hours]
+
+  - name: before a daytime window
+    facets: [{kind: spending_hours, require: {hours_from: 7, hours_to: 22}}]
+    timestamp: "2026-08-15T03:00:00Z"
+    expect_verdicts: [violation]
+    expect_reasons: [outside_spending_hours]
+    expect_detail_contains: "03:00"
+
+  - name: boundary — the opening hour is inside
+    note: hours_from is inclusive.
+    facets: [{kind: spending_hours, require: {hours_from: 7, hours_to: 22}}]
+    timestamp: "2026-08-15T07:00:00Z"
+    expect_verdicts: [pass]
+    expect_reasons: [within_spending_hours]
+
+  - name: boundary — the closing hour is outside
+    note: hours_to is exclusive, so 22:00 is already out.
+    facets: [{kind: spending_hours, require: {hours_from: 7, hours_to: 22}}]
+    timestamp: "2026-08-15T22:00:00Z"
+    expect_verdicts: [violation]
+    expect_reasons: [outside_spending_hours]
+
+  - name: the last minute before closing is inside
+    facets: [{kind: spending_hours, require: {hours_from: 7, hours_to: 22}}]
+    timestamp: "2026-08-15T21:59:00Z"
+    expect_verdicts: [pass]
+    expect_reasons: [within_spending_hours]
+
+  # ----------------------------------------------------------------- a window that wraps
+
+  - name: a window wrapping midnight, in the evening half
+    note: '"22:00 to 07:00" is how a person says quiet hours — permitted here, so this passes.'
+    facets: [{kind: spending_hours, require: {hours_from: 22, hours_to: 7}}]
+    timestamp: "2026-08-15T23:30:00Z"
+    expect_verdicts: [pass]
+    expect_reasons: [within_spending_hours]
+
+  - name: a window wrapping midnight, in the morning half
+    facets: [{kind: spending_hours, require: {hours_from: 22, hours_to: 7}}]
+    timestamp: "2026-08-15T02:00:00Z"
+    expect_verdicts: [pass]
+    expect_reasons: [within_spending_hours]
+
+  - name: a window wrapping midnight, outside it
+    facets: [{kind: spending_hours, require: {hours_from: 22, hours_to: 7}}]
+    timestamp: "2026-08-15T12:00:00Z"
+    expect_verdicts: [violation]
+    expect_reasons: [outside_spending_hours]
+
+  - name: the SCEN0003 night burst, against a daytime rule
+    note: >
+      AU0027-AU0030 land at 02:00-03:00 UTC. They decline today on merchant familiarity; a
+      customer who also stated daytime-only hours would see this finding beside it.
+    facets: [{kind: spending_hours, require: {hours_from: 7, hours_to: 22}}]
+    timestamp: "2026-08-21T02:14:00Z"
+    expect_verdicts: [violation]
+    expect_reasons: [outside_spending_hours]
+
+  # ----------------------------------------------------------------- the unknown cases
+
+  - name: equal bounds could mean nothing or everything, so it is unknown
+    facets: [{kind: spending_hours, require: {hours_from: 9, hours_to: 9}}]
+    timestamp: "2026-08-15T12:00:00Z"
+    expect_verdicts: [unknown]
+    expect_reasons: [insufficient_evidence]
+
+  - name: a missing bound is unknown
+    facets: [{kind: spending_hours, require: {hours_from: 7}}]
+    timestamp: "2026-08-15T12:00:00Z"
+    expect_verdicts: [unknown]
+    expect_reasons: [insufficient_evidence]
+
+  - name: an hour outside 0-23 is unknown
+    facets: [{kind: spending_hours, require: {hours_from: 7, hours_to: 25}}]
+    timestamp: "2026-08-15T12:00:00Z"
+    expect_verdicts: [unknown]
+    expect_reasons: [insufficient_evidence]
+
+  - name: a bound that is not a number is unknown
+    facets: [{kind: spending_hours, require: {hours_from: "morning", hours_to: 22}}]
+    timestamp: "2026-08-15T12:00:00Z"
+    expect_verdicts: [unknown]
+    expect_reasons: [insufficient_evidence]
+
+  # --- days (specs/check-spending-hours.md §"Days") ---
+  # Live SCEN0113: "Weeknight dinners only … Never at the weekend." Days are read on the
+  # customer's clock, Europe/Zurich (CEST UTC+2 in summer, CET UTC+1 in winter); hours stay UTC.
+
+  - name: a Saturday order is outside the days allowed
+    facets: [{kind: spending_hours, require: {weekdays: [mon, tue, wed, thu, fri]}}]
+    timestamp: "2026-08-22T08:00:00Z"
+    expect_verdict: violation
+    expect_reason: outside_spending_days
+    expect_detail_contains: Saturday (Swiss time)
+    expect_follow_up: An order on Monday to Friday would meet your preferences.
+
+  - name: Friday 23:30 UTC in September is already Saturday in Zurich
+    facets: [{kind: spending_hours, require: {weekdays: [mon, tue, wed, thu, fri]}}]
+    timestamp: "2026-09-04T23:30:00Z"
+    expect_verdict: violation
+    expect_reason: outside_spending_days
+    expect_evidence_contains: order_weekday_local=sat
+    note: Read in UTC it is a Friday and would pass. The weekend the customer wrote is theirs.
+
+  - name: Friday 21:30 UTC in September is still Friday in Zurich
+    facets: [{kind: spending_hours, require: {weekdays: [mon, tue, wed, thu, fri]}}]
+    timestamp: "2026-09-04T21:30:00Z"
+    expect_verdict: pass
+    expect_reason: within_spending_days
+
+  - name: Sunday 22:30 UTC in September is Monday in Zurich
+    facets: [{kind: spending_hours, require: {weekdays: [mon, tue, wed, thu, fri]}}]
+    timestamp: "2026-09-06T22:30:00Z"
+    expect_verdict: pass
+    expect_reason: within_spending_days
+    expect_evidence_contains: order_weekday_local=mon
+
+  - name: in winter Zurich is one hour ahead, not two
+    facets: [{kind: spending_hours, require: {weekdays: [mon, tue, wed, thu, fri]}}]
+    timestamp: "2026-01-09T22:30:00Z"
+    expect_verdict: pass
+    expect_reason: within_spending_days
+    note: 23:30 CET on Friday 9 January. In summer the same UTC time would be Saturday.
+
+  - name: winter Friday 23:30 UTC is Saturday in Zurich
+    facets: [{kind: spending_hours, require: {weekdays: [mon, tue, wed, thu, fri]}}]
+    timestamp: "2026-01-09T23:30:00Z"
+    expect_verdict: violation
+    expect_reason: outside_spending_days
+
+  - name: hours and days are judged separately, hours first
+    facets: [{kind: spending_hours, require: {hours_from: 7, hours_to: 22, weekdays: [mon, tue, wed, thu, fri]}}]
+    timestamp: "2026-08-22T12:00:00Z"
+    expect_verdicts: [pass, violation]
+    expect_reasons: [within_spending_hours, outside_spending_days]
+
+  - name: a day we cannot read makes the days unknown, never a guess
+    facets: [{kind: spending_hours, require: {weekdays: [mon, funday]}}]
+    timestamp: "2026-08-22T12:00:00Z"
+    expect_verdict: unknown
+    expect_reason: insufficient_evidence

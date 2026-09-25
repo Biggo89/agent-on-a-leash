@@ -1,0 +1,44 @@
+# Language-neutral vectors for the duplicate_order check.
+# Spec: specs/check-duplicate-order.md
+suite: duplicate_order
+check: duplicate_order
+cases:
+  - name: an ordinary first order reports nothing
+    facets: []
+    is_duplicate_of: null
+    is_requote_of: null
+    expect_verdict: pass
+    expect_reason: null
+
+  - name: a repeat of an approved order escalates (AU0036)
+    facets: []
+    is_duplicate_of: AU0035-RUN
+    merchant_name: PixelHarbor
+    billing_amount_chf: "289.00"
+    expect_verdict: concern
+    expect_reason: duplicate_order
+    expect_evidence_contains: AU0035-RUN
+    note: >
+      Same merchant, same amount, same cart, 25 minutes after an approved order, with no link
+      to a declined predecessor. Weight 2.0 escalates it on its own.
+
+  - name: a re-quote after a decline is explicitly legitimate (AU0042)
+    facets: []
+    is_duplicate_of: null
+    is_requote_of: AU0037-RUN
+    related_authorization_id: AU0037-RUN
+    related_authorization_status: declined
+    expect_verdict: pass
+    expect_reason: legitimate_requote
+    expect_evidence_contains: AU0037-RUN
+    note: >
+      Penalising a retry after a decline is over-blocking. The brief lists it among the
+      attempts that look alarming and are legitimate, so it earns a positive reason code.
+
+  - name: a duplicate link wins over nothing when both are somehow present
+    facets: []
+    is_duplicate_of: AU0035-RUN
+    is_requote_of: AU0037-RUN
+    expect_verdict: concern
+    expect_reason: duplicate_order
+    note: Defensive ordering; the enrichment never sets both, since a linked attempt is never a duplicate.

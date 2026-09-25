@@ -1,0 +1,399 @@
+<title>Leash Wallet — Connector Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --ground: #F3F5F8;
+    --paper: #FFFFFF;
+    --ink: #17212F;
+    --muted: #5D6979;
+    --line: #D9DEE6;
+    --line-strong: #B9C2CE;
+    --accent: #2457C5;
+    --accent-soft: #E6EEFB;
+    --approve: #1E8A5C;
+    --approve-soft: #E3F4EB;
+    --stepup: #B86F0A;
+    --stepup-soft: #FBEFD9;
+    --decline: #B9312E;
+    --decline-soft: #F9E4E3;
+    --code-bg: #EEF1F5;
+    --phone: #0F1622;
+    --phone-ink: #F2F5F9;
+    --phone-muted: #9AA6B6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground: #0E131A;
+      --paper: #161D27;
+      --ink: #E4E9F0;
+      --muted: #94A0B0;
+      --line: #2A3441;
+      --line-strong: #3A4756;
+      --accent: #7FA9F2;
+      --accent-soft: #1B2B47;
+      --approve: #4FC48D;
+      --approve-soft: #15352A;
+      --stepup: #E6A24A;
+      --stepup-soft: #3B2A12;
+      --decline: #F07C78;
+      --decline-soft: #3E1E1D;
+      --code-bg: #0E131A;
+      --phone: #05080D;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground: #0E131A;
+    --paper: #161D27;
+    --ink: #E4E9F0;
+    --muted: #94A0B0;
+    --line: #2A3441;
+    --line-strong: #3A4756;
+    --accent: #7FA9F2;
+    --accent-soft: #1B2B47;
+    --approve: #4FC48D;
+    --approve-soft: #15352A;
+    --stepup: #E6A24A;
+    --stepup-soft: #3B2A12;
+    --decline: #F07C78;
+    --decline-soft: #3E1E1D;
+    --code-bg: #0E131A;
+    --phone: #05080D;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Instrument Sans", "Helvetica Neue", Arial, sans-serif;
+    font-size: 17px;
+    line-height: 1.55;
+    padding-block: 0 96px;
+    padding-inline: 20px;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; }
+  .prose { max-width: 68ch; }
+  h1, h2, h3 { text-wrap: balance; line-height: 1.15; margin: 0; }
+  h1 { font-size: clamp(2rem, 5vw, 3rem); font-weight: 700; letter-spacing: -0.02em; }
+  h2 { font-size: 1.5rem; font-weight: 600; letter-spacing: -0.01em; margin-top: 72px; margin-bottom: 8px; }
+  h3 { font-size: 1.05rem; font-weight: 600; margin-top: 32px; margin-bottom: 6px; }
+  p { margin: 0 0 16px; }
+  a { color: var(--accent); }
+  code, pre, .mono {
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.86em;
+  }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; overflow-x: auto; line-height: 1.5; margin: 0 0 16px; }
+  pre code { background: none; padding: 0; font-size: 0.9em; }
+  .eyebrow { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .rule { border: 0; border-top: 1px solid var(--line); margin: 0; }
+
+  header { padding-block: 56px 40px; border-bottom: 1px solid var(--line); }
+  header .lede { font-size: 1.25rem; line-height: 1.45; margin-top: 20px; color: var(--ink); max-width: 60ch; }
+  header .meta { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-top: 24px; color: var(--muted); font-size: 0.9rem; }
+  header .meta b { color: var(--ink); font-weight: 600; }
+
+  .callout { background: var(--paper); border: 1px solid var(--line); border-left: 4px solid var(--accent); padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 0 0 20px; }
+  .callout p:last-child { margin-bottom: 0; }
+
+  /* architecture */
+  .arch { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin: 24px 0 12px; }
+  .arch .box { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; min-height: 100%; }
+  .arch .box .eyebrow { display: block; margin-bottom: 6px; }
+  .arch .box strong { display: block; font-size: 1.05rem; margin-bottom: 6px; }
+  .arch .box p { margin: 0; color: var(--muted); font-size: 0.95rem; }
+  .arch .box.hot { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .arch .flow { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; font-family: "IBM Plex Mono", monospace; font-size: 0.78rem; color: var(--muted); }
+  .arch .flow span { padding-inline: 4px; }
+  .arch .side { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 2fr; gap: 16px; align-items: stretch; }
+  .arch .side .box { border-style: dashed; }
+  @media (max-width: 720px) {
+    .arch, .arch .flow, .arch .side { grid-template-columns: 1fr; }
+    .arch .flow { display: none; }
+  }
+
+  /* journey */
+  .journey { counter-reset: step; list-style: none; padding: 0; margin: 24px 0 0; display: grid; gap: 0; }
+  .journey li { counter-increment: step; display: grid; grid-template-columns: 44px 1fr; gap: 16px; padding-block: 18px; border-top: 1px solid var(--line); }
+  .journey li:last-child { border-bottom: 1px solid var(--line); }
+  .journey li::before { content: counter(step); font-family: "IBM Plex Mono", monospace; font-weight: 500; color: var(--accent); font-size: 1.1rem; padding-top: 2px; }
+  .journey li strong { display: block; margin-bottom: 4px; }
+  .journey li p { margin: 0; }
+  .journey li p + p { margin-top: 8px; }
+
+  .consent-row { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 32px; align-items: start; margin-top: 8px; }
+  @media (max-width: 720px) { .consent-row { grid-template-columns: 1fr; } }
+
+  /* phone */
+  .phone { background: var(--phone); color: var(--phone-ink); border-radius: 28px; padding: 22px 18px 20px; max-width: 340px; margin: 0 auto; box-shadow: 0 20px 40px -20px rgba(0,0,0,0.5); border: 1px solid var(--line-strong); }
+  .phone .bar { display: flex; justify-content: space-between; font-family: "IBM Plex Mono", monospace; font-size: 0.7rem; color: var(--phone-muted); margin-bottom: 18px; }
+  .phone .app { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  .phone .app .logo { width: 34px; height: 34px; border-radius: 9px; background: linear-gradient(135deg, #3D7BF0, #1E4FB5); display: grid; place-items: center; font-weight: 700; font-size: 0.9rem; color: #fff; }
+  .phone .app .name { font-weight: 600; font-size: 0.95rem; }
+  .phone .app .sub { font-size: 0.75rem; color: var(--phone-muted); }
+  .phone h4 { margin: 0 0 12px; font-size: 1.15rem; font-weight: 600; line-height: 1.25; }
+  .phone .line { display: grid; grid-template-columns: 22px 1fr; gap: 10px; padding-block: 10px; border-top: 1px solid #263140; font-size: 0.86rem; line-height: 1.4; }
+  .phone .line:last-of-type { border-bottom: 1px solid #263140; }
+  .phone .dot { width: 18px; height: 18px; border-radius: 50%; margin-top: 2px; display: grid; place-items: center; font-size: 0.7rem; font-weight: 700; }
+  .phone .dot.ok { background: #1E8A5C; color: #fff; }
+  .phone .dot.no { background: #B9312E; color: #fff; }
+  .phone .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+  .phone .btn { text-align: center; padding: 11px; border-radius: 12px; font-weight: 600; font-size: 0.9rem; }
+  .phone .btn.primary { background: #3D7BF0; color: #fff; }
+  .phone .btn.ghost { border: 1px solid #3A4756; color: var(--phone-ink); }
+  .phone .foot { font-size: 0.72rem; color: var(--phone-muted); margin-top: 12px; text-align: center; }
+  figcaption { font-size: 0.85rem; color: var(--muted); text-align: center; margin-top: 12px; }
+  figure { margin: 0; }
+
+  /* decisions */
+  .decisions { list-style: none; padding: 0; margin: 24px 0 0; display: grid; gap: 14px; }
+  .decisions li { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 16px 20px; }
+  .decisions li strong { display: block; margin-bottom: 4px; }
+  .decisions li p { margin: 0; color: var(--ink); }
+
+  /* tables */
+  .tablewrap { overflow-x: auto; margin: 20px 0; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.93rem; }
+  th, td { text-align: left; padding: 11px 14px; border-top: 1px solid var(--line); vertical-align: top; }
+  thead th { border-top: 0; background: var(--code-bg); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+  td code { white-space: nowrap; }
+  .tablewrap.compact td { padding-block: 8px; }
+
+  .scopes { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0; }
+  .scopes .col { border-radius: 10px; padding: 16px 18px; border: 1px solid var(--line); background: var(--paper); }
+  .scopes .col.agent { border-top: 4px solid var(--approve); }
+  .scopes .col.app { border-top: 4px solid var(--decline); }
+  .scopes .col .eyebrow { display: block; margin-bottom: 10px; }
+  .scopes ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+  .scopes li { font-family: "IBM Plex Mono", monospace; font-size: 0.85rem; }
+  .scopes li small { font-family: "Instrument Sans", sans-serif; color: var(--muted); font-size: 0.85rem; margin-left: 8px; }
+  @media (max-width: 720px) { .scopes { grid-template-columns: 1fr; } }
+
+  .verdicts { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 16px; }
+  .pill { font-family: "IBM Plex Mono", monospace; font-size: 0.78rem; padding: 3px 10px; border-radius: 999px; font-weight: 500; }
+  .pill.approve { background: var(--approve-soft); color: var(--approve); }
+  .pill.stepup { background: var(--stepup-soft); color: var(--stepup); }
+  .pill.decline { background: var(--decline-soft); color: var(--decline); }
+
+  /* chain */
+  .chain { list-style: none; padding: 0; margin: 20px 0; counter-reset: c; display: grid; gap: 10px; }
+  .chain li { counter-increment: c; display: grid; grid-template-columns: 30px 1fr; gap: 12px; align-items: baseline; }
+  .chain li::before { content: counter(c); font-family: "IBM Plex Mono", monospace; color: var(--muted); font-size: 0.85rem; }
+  .chain li code { font-size: 0.8em; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 16px; }
+  .chips code { padding: 5px 10px; border: 1px solid var(--line); background: var(--paper); border-radius: 6px; }
+
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 720px) { .two { grid-template-columns: 1fr; } }
+
+  .note { color: var(--muted); font-size: 0.92rem; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Wallet Control Layer · connector proposal</span>
+    <h1 style="margin-top:12px">Leash Wallet — Connector Design</h1>
+    <p class="lede">How a cardholder plugs the Wallet Control Layer into an AI agent the way they plug in Gmail or GitHub. One URL, a login to their payment app, a consent screen, done. The agent gets a handful of tools. The cardholder keeps every decision that matters in the app.</p>
+    <div class="meta">
+      <span><b>Status</b> built and verified</span>
+      <span><b>Date</b> 24 Sept 2026</span>
+      <span><b>Owner</b> Nakya</span>
+      <span><b>Source</b> <code>connector/README.md</code></span>
+    </div>
+  </header>
+
+  <section class="prose">
+    <h2>The short answer</h2>
+    <p>Build the connector as a <strong>remote MCP server with OAuth 2.1</strong>. That is exactly what the Gmail and GitHub connectors are under the hood. Our existing FastAPI service is the resource server. The mock Payment App plays the authorization server. The cardholder pastes one URL, logs into the app, sees a consent screen in the app's own look, and the agent has its tools. No API keys, no config files.</p>
+    <p>The connector is thin. It re-implements nothing in the engine. It owns three things: the token check, the mapping from token to cardholder and card, and a curated set of tools.</p>
+    <div class="callout">
+      <p><strong>What exists now.</strong> Everything on this page is implemented in the wallet-control-layer project and verified end to end against the official MCP Python client and the phone in a browser. Two details changed from the first draft, each explained where it occurs: tokens are verified by introspection rather than a signed JWT, and the mock app lives inside the project beside the sandbox replica.</p>
+      <pre><code>cd wallet-control-layer
+make sandbox            # terminal 1: the offline replica
+make connect            # terminal 2: service + Payment App under /app, one port
+make probe-connector    # terminal 3: the official MCP client runs the whole flow
+claude mcp add --transport http Leash-Wallet http://127.0.0.1:8010/mcp</code></pre>
+      <p>The phone is at <code>http://127.0.0.1:8010/app/</code>. The demo has its own port so it runs beside the decision service on 8000.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="arch">
+      <div class="box">
+        <span class="eyebrow">Agent host</span>
+        <strong>Claude · ChatGPT · Claude Code</strong>
+        <p>Any MCP client. Already speaks OAuth, already knows how to discover a server from one URL.</p>
+      </div>
+      <div class="box hot">
+        <span class="eyebrow">Connector</span>
+        <strong>MCP server at <code>/mcp</code></strong>
+        <p>Streamable HTTP, mounted on the leash service. Validates the bearer token, maps it to a cardholder, calls the Supervisor.</p>
+      </div>
+      <div class="box">
+        <span class="eyebrow">Resource</span>
+        <strong>Wallet Control Layer</strong>
+        <p>Unchanged. Mandates, decide, rolling ledger, audit trail, step-ups.</p>
+      </div>
+      <div class="flow"><span>one URL, bearer token</span><span>Supervisor calls</span><span>approve · decline · step_up</span></div>
+      <div class="side">
+        <div class="box">
+          <span class="eyebrow">Authorization server</span>
+          <strong>Mock Payment App</strong>
+          <p>Login, consent, token issuing.</p>
+        </div>
+        <div class="box">
+          <span class="eyebrow">Same app, cardholder side</span>
+          <strong>The phone screens</strong>
+          <p>Mandate confirmation, step-up answers with the 120-second countdown, the connected-agents list with revoke. Everything the agent can never do lives here.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="prose">
+      <h2>What the customer experiences</h2>
+      <p>Six moments, in the order they happen. The consent screen in step 3 is where the experience is won or lost.</p>
+    </div>
+    <div class="consent-row">
+      <ol class="journey">
+        <li><div><strong>Add the connector</strong><p>In Claude: Settings, Connectors, Add custom connector, paste the URL. Claude fetches the server's metadata, registers itself as a client, and opens the login page. ChatGPT and Claude Code do the same from the same URL.</p></div></li>
+        <li><div><strong>Log in to the Payment App</strong><p>The mock app's own login screen, not a generic OAuth page. Fake credentials, real look.</p></div></li>
+        <li><div><strong>Consent, phrased as a mandate</strong><p>No scopes like <code>payment:write</code>. Three short lines: which agent is asking, by the name it registered with. Which card it gets. What it can never do.</p></div></li>
+        <li><div><strong>Set up the leash in the chat</strong><p>The cardholder types the instruction to the agent in their own words. The agent calls <code>propose_mandate</code>. The draft appears on the phone with every span that became a rule highlighted. The cardholder confirms on the phone, not in the chat.</p></div></li>
+        <li><div><strong>Shop</strong><p>The agent calls <code>request_payment</code>. Approve and decline come back in a millisecond with the plain-language explanation. A step-up pushes to the phone with the countdown, and the agent is told the cardholder has been asked.</p></div></li>
+        <li><div><strong>Stay in control</strong><p>The app has a Connected agents page, like Google's third-party access page. Revoke there and two things happen at once: the token dies and the mandate is revoked. The agent's next call gets a clean "access revoked" answer, not a crash.</p></div></li>
+      </ol>
+      <figure>
+        <div class="phone" aria-label="Mock consent screen">
+          <div class="bar"><span>09:41</span><span>●●●</span></div>
+          <div class="app">
+            <div class="logo">W</div>
+            <div><div class="name">Wallet</div><div class="sub">mock payment app</div></div>
+          </div>
+          <h4>Claude wants to shop with your card</h4>
+          <div class="line"><span class="dot ok">✓</span><span>Claude can ask to pay with your card ending <b>4321</b>.</span></div>
+          <div class="line"><span class="dot ok">✓</span><span>Every request is checked against your rules. You answer the exceptions here, in this app.</span></div>
+          <div class="line"><span class="dot no">✕</span><span>Claude can never approve its own requests, confirm a mandate, or change your limits.</span></div>
+          <div class="btns"><div class="btn ghost">Not now</div><div class="btn primary">Connect Claude</div></div>
+          <div class="foot">You can disconnect any time under Connected agents.</div>
+        </div>
+        <figcaption>The consent screen. The third line is a promise the scope table below makes structurally true.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section>
+    <div class="prose">
+      <h2>The decisions that make it elegant</h2>
+    </div>
+    <ul class="decisions">
+      <li><strong>Consent and confirmation never pass through the agent.</strong><p>The agent's token can only carry scopes for proposing, requesting and reading. The scopes that confirm a mandate, resolve a step-up or amend a limit exist only for the app's own session. This is the connector-level version of "no LLM in the decision path", and it belongs on the consent screen as a sentence.</p></li>
+      <li><strong>Curated tools, not the OpenAPI dump.</strong><p>The Python MCP SDK can generate one tool per FastAPI route. Don't. The agent sees five verbs. Their descriptions carry the rules of the leash, which is the cheapest way to make a foreign agent behave: fewer declines, better demo.</p></li>
+      <li><strong>The token binds cardholder, card and agent.</strong><p>A signed JWT with the cardholder as subject, the card, the agent's client id and the scope. The connector maps it to the Supervisor. The Supervisor is single-tenant today. For the mock, one session per subject and nothing else changes.</p></li>
+      <li><strong>Step-up stays out of band.</strong><p>MCP has elicitation, where the server asks the client to ask the user. Tempting for step-ups and wrong for them, because the agent mediates the question. Use it at most for a compiler open question. Payment consent goes to the phone.</p></li>
+      <li><strong>Return fast, let the agent poll.</strong><p>A step-up must not block the tool call for two minutes. Return <code>pending</code> with the authorization id and a human-readable line. <code>payment_status</code> resolves it.</p></li>
+      <li><strong>Errors in cardholder language.</strong><p>The service already returns explanations. Pass them through as the tool result text: "CHF 391.50 exceeds the CHF 250.00 limit you set in the app", never "HTTP 409".</p></li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="prose">
+      <h2>What the agent sees</h2>
+      <p>Five tools. Every one maps to a route the service already has. The result of a payment request is one of three words, plus the explanation the engine already writes.</p>
+      <div class="verdicts"><span class="pill approve">approve</span><span class="pill decline">decline</span><span class="pill stepup">pending · step-up on the phone</span></div>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Tool</th><th>Scope</th><th>Backed by</th><th>Returns</th></tr></thead>
+        <tbody>
+          <tr><td><code>propose_mandate(instruction)</code></td><td><code>mandate:propose</code></td><td><code>POST /v1/mandates</code></td><td>Draft id, compiled rules with provenance, "waiting for the cardholder in the app".</td></tr>
+          <tr><td><code>whats_allowed()</code></td><td><code>activity:read</code></td><td><code>GET /v1/mandates/{id}</code> + ledger</td><td>Active rules in plain language, remaining budget, spending hours.</td></tr>
+          <tr><td><code>request_payment(order)</code></td><td><code>payment:request</code></td><td><code>POST /v1/decide</code></td><td>approve, decline or pending, with explanation and trust score.</td></tr>
+          <tr><td><code>payment_status(authorization_id)</code></td><td><code>payment:request</code></td><td><code>GET /v1/step-ups</code>, audit</td><td>Resolved decision, or still pending with seconds left.</td></tr>
+          <tr><td><code>recent_activity(limit)</code></td><td><code>activity:read</code></td><td><code>GET /v1/decisions</code></td><td>The last decisions as the cardholder would read them.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note prose">Optional MCP resources for agents that read before they act: <code>wallet://mandate/current</code> and <code>wallet://ledger/window</code>.</p>
+
+    <div class="scopes">
+      <div class="col agent">
+        <span class="eyebrow">The agent may hold</span>
+        <ul>
+          <li>mandate:propose <small>draft a leash</small></li>
+          <li>payment:request <small>ask to pay</small></li>
+          <li>activity:read <small>see rules and ledger</small></li>
+        </ul>
+      </div>
+      <div class="col app">
+        <span class="eyebrow">Only the app's own session holds</span>
+        <ul>
+          <li>mandate:confirm <small>consent</small></li>
+          <li>stepup:resolve <small>answer a step-up</small></li>
+          <li>mandate:amend <small>tighten or loosen</small></li>
+          <li>mandate:revoke · agent:revoke <small>pull the leash</small></li>
+        </ul>
+      </div>
+    </div>
+    <p class="prose">The right column is what makes the consent sentence "Claude can never…" true rather than promised.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Plumbing</h2>
+    <h3>Discovery chain</h3>
+    <p>The MCP authorization spec fixes this sequence, which is why any client finds its way with no configuration.</p>
+    <ol class="chain">
+      <li><span>The client calls <code>/mcp</code> without a token and gets a <code>401</code> whose <code>WWW-Authenticate</code> header points at <code>/.well-known/oauth-protected-resource</code>.</span></li>
+      <li><span>That document names the mock app under <code>authorization_servers</code>.</span></li>
+      <li><span>The client reads the app's <code>/.well-known/oauth-authorization-server</code>.</span></li>
+      <li><span>It registers itself at the <code>registration_endpoint</code> and receives a client id. Claude also accepts a manually entered id and secret, but dynamic registration is what makes it one paste.</span></li>
+      <li><span>PKCE authorization-code flow: <code>/authorize</code> shows login and consent, <code>/token</code> issues an opaque token bound to the connector as its <code>resource</code>.</span></li>
+      <li><span>Every MCP call carries the bearer token. The connector asks the app whether it is live (RFC 7662 introspection, cached for a few seconds) and checks the scope against the tool.</span></li>
+    </ol>
+    <p>Introspection rather than a signed JWT with a JWKS, as the first draft said. It needs no key material and no dependency, and it makes Revoke on the phone immediate: the token dies at its source and the agent's next call is a 401. An issuer with a real key infrastructure swaps the verifier, which is one method.</p>
+
+    <h3>The mock Payment App's endpoints</h3>
+    <div class="chips">
+      <code>/.well-known/oauth-authorization-server</code>
+      <code>POST /register</code>
+      <code>GET|POST /authorize</code>
+      <code>POST /token</code>
+      <code>POST /introspect</code>
+      <code>POST /revoke</code>
+    </div>
+    <p>Plus the phone screens: mandate confirmation with every rule highlighting the words it came from, the step-up with its countdown, connected agents with revoke, recent decisions.</p>
+    <h3>Who signs in</h3>
+    <p>The personas on the sign-in screen come from the organizers' data pack. The customers file gives the person, the accounts and cards files give their everyday card and its account limit, and the authorization history gives the device the card is normally used from, which becomes the token's device id, and the purchase count that orders the list. The last four digits are derived from the card id and the PIN is not checked, and the screen says so. The engine judges a persona's agent against the same history the fixtures use.</p>
+
+    <div class="two">
+      <div>
+        <h3>Demo</h3>
+        <p>claude.ai runs in the cloud, so it needs a public HTTPS URL for the MCP endpoint and for the authorization server. The one-process launcher mounts the app under <code>/app</code> of the service, so one tunnel covers both.</p>
+        <pre><code>cloudflared tunnel --url http://localhost:8010</code></pre>
+        <p>Claude Code needs no tunnel. The connector is documented as an extra after the beats in <code>DEMO.md</code>. If the venue Wi-Fi dies, the offline demo is untouched.</p>
+      </div>
+      <div>
+        <h3>Where it lives</h3>
+        <p>The MCP server is the <code>connector</code> package beside <code>service</code> in the leash source tree: auth, orders, the errand, rendering, the transport by hand, and the routes. Mounted on the same app.</p>
+        <p>The mock Payment App is <code>payment_app</code> inside the project, beside the sandbox replica, so it shares the one environment and the one check. Not folded into the leash demo or the playground, which each already have one job.</p>
+        <p>Its screens are the leash demo's screens. The app serves the demo's source tree and loads the same two stylesheets, whose tokens were sampled from one-digitalservice.ch, and the home screen runs the demo's own phone component and settings editor, fed by the connector's errand. One design system and one phone, with no copy to keep in step.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="prose">
+    <h2>Positioning</h2>
+    <div class="callout">
+      <p>Google's Agent Payments Protocol and Visa's Trusted Agent Protocol both use <em>intent mandate</em> and <em>cart mandate</em> for the objects this project already has. Borrowing that vocabulary in the tool names costs nothing and makes the connector read as a standard rather than a hackathon adapter.</p>
+    </div>
+  </section>
+</div>

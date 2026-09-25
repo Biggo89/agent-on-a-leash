@@ -1,0 +1,42 @@
+# Language-neutral conformance vectors. A port to another language must pass these
+# unchanged — they are the portability contract (AGENTS.md §3.4).
+suite: money_and_currency
+spec: specs/decision-rules.md#11-money--normative
+cases:
+  - name: parses two decimals exactly
+    op: money.from_value
+    input: "44.50"
+    expect_centimes: 4450
+
+  - name: half-even rounding at the midpoint
+    op: money.from_value
+    input: "0.125"
+    expect_centimes: 12
+
+  - name: no float drift when summing to the cap
+    op: money.sum
+    input: ["120.00", "70.00", "65.00", "44.50"]
+    expect_centimes: 29950
+    note: SCEN0001 lands on CHF 299.50 against a CHF 300.00 cap. Floats change this outcome.
+
+  - name: EUR converts below a CHF cap (fixture AU0032)
+    op: money.to_chf
+    input: {amount: "260.00", currency: EUR}
+    expect_centimes: 24700
+    note: 260 EUR = 247.00 CHF. Comparing `amount` against a 250 cap wrongly declines.
+
+  - name: GBP conversion (fixture AU0029)
+    op: money.to_chf
+    input: {amount: "219.00", currency: GBP}
+    expect_centimes: 24528
+
+  - name: USD conversion (fixture AU0038)
+    op: money.to_chf
+    input: {amount: "450.00", currency: USD}
+    expect_centimes: 39150
+    note: Looks alarming (US merchant, USD) but is 391.50 CHF at a seller with 21 prior approvals.
+
+  - name: unsupported currency is rejected, never silently passed through
+    op: money.to_chf
+    input: {amount: "10.00", currency: JPY}
+    expect_error: CurrencyError

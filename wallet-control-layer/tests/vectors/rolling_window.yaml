@@ -1,0 +1,52 @@
+suite: rolling_window
+spec: specs/decision-rules.md#21-rolling-period-window
+period_days: 7
+cases:
+  - name: lower bound is inclusive
+    approvals: [{id: A, ts: "2026-08-12T09:45:00Z", chf: "50.00"}]
+    now: "2026-08-19T09:45:00Z"
+    expect_window_chf: "50.00"
+    note: exactly 7 days earlier — inside the window
+
+  - name: upper bound is exclusive (current attempt never counts itself)
+    approvals: [{id: A, ts: "2026-08-19T09:45:00Z", chf: "50.00"}]
+    now: "2026-08-19T09:45:00Z"
+    expect_window_chf: "0.00"
+
+  - name: older approvals age out
+    approvals: [{id: A, ts: "2026-08-12T09:44:59Z", chf: "50.00"}]
+    now: "2026-08-19T09:45:00Z"
+    expect_window_chf: "0.00"
+
+  - name: SCEN0001 at AU0011 — the discriminator
+    approvals:
+      - {id: AU0002, ts: "2026-08-10T09:12:00Z", chf: "44.50"}
+      - {id: AU0003, ts: "2026-08-11T18:35:00Z", chf: "120.00"}
+      - {id: AU0005, ts: "2026-08-13T17:20:00Z", chf: "70.00"}
+      - {id: AU0006, ts: "2026-08-13T17:26:00Z", chf: "65.00"}
+    now: "2026-08-19T09:45:00Z"
+    expect_window_chf: "135.00"
+    expect_cumulative_chf: "299.50"
+    note: >
+      Rolling gives 135.00 (+88.00 = 223.00 <= 300 -> approve). Cumulative gives 299.50
+      (+88.00 = 387.50 > 300 -> wrongly declines a legitimate grocery delivery).
+
+  - name: a stepped-up authorization does not count until resolved
+    approvals: []
+    step_ups: [{id: S, ts: "2026-08-18T10:00:00Z", chf: "80.00"}]
+    now: "2026-08-19T09:45:00Z"
+    expect_window_chf: "0.00"
+
+  - name: resolving a step-up as approve enters the window
+    approvals: []
+    step_ups: [{id: S, ts: "2026-08-18T10:00:00Z", chf: "80.00"}]
+    resolve: {id: S, approved: true}
+    now: "2026-08-19T09:45:00Z"
+    expect_window_chf: "80.00"
+
+  - name: duplicate delivery must not double-count
+    approvals:
+      - {id: A, ts: "2026-08-18T10:00:00Z", chf: "80.00"}
+      - {id: A, ts: "2026-08-18T10:00:00Z", chf: "80.00"}
+    now: "2026-08-19T09:45:00Z"
+    expect_window_chf: "80.00"

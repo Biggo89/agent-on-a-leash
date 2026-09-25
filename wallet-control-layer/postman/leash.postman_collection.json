@@ -1,0 +1,1349 @@
+{
+  "info": {
+    "name": "Wallet Control Layer \u2014 Agent on a Leash",
+    "_postman_id": "b1e6b6f0-5f1a-4a3e-9c2d-7c0f9a1d4e21",
+    "description": "**The control layer that decides whether an AI shopping agent may spend a customer's money.** Viseca challenge, Swiss {ai} Weeks 2026.\n\nEvery proposed purchase gets one of three answers \u2014 **approve**, **decline**, or **step_up** (ask the customer) \u2014 with a plain-language explanation and an audit record.\n\n---\n\n## You do not need to be a developer to use this\n\n**Before you import this:** someone needs to have the engine running. One person on the team runs two commands:\n\n```\nmake setup\nmake serve-live\n```\n\n\u2026and it prints `service http://127.0.0.1:8000`. Full instructions, including what to install first, are in `postman/README.md`.\n\n## Then\n\n1. Pick the **Leash \u2014 local** environment (top right).\n2. Open **0 \u00b7 Start here** and Send the three requests.\n3. Go to **2 \u00b7 Watch it decide** and Send *Start a scenario*.\n4. Send *See the decisions* a few times and read the **Console** at the bottom left \u2014 the decisions are printed there in plain English.\n\nEvery request explains what it does and what to look at. Requests store what the next one needs, so you never copy an ID by hand.\n\n---\n\nContract: `specs/service-contract.md` \u00b7 Decision semantics: `specs/decision-rules.md`",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "0 \u00b7 Start here",
+      "description": "Run these three in order. If all three are green the engine is live and talking to the organizers' sandbox \u2014 you can go straight to folder 2 and watch it decide.",
+      "item": [
+        {
+          "name": "1. Is the engine up?",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{engine_url}}/healthz",
+              "host": [
+                "{{engine_url}}"
+              ],
+              "path": [
+                "healthz"
+              ]
+            },
+            "description": "Our decision service. `upstream.mode` tells you which sandbox it is pointed at:\n\n- **live** \u2014 the organizers' API (started with `make serve-live`)\n- **replica** \u2014 the offline copy on your laptop (`make serve`)\n\nIf this fails with a connection error, the server is not running. See postman/README.md."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('engine reports a version', () => pm.expect(b.engine_version).to.be.a('string'));",
+                  "pm.test('all 12 checks are registered', () => pm.expect(b.checks_registered).to.eql(12));",
+                  "pm.test('the sandbox is reachable', () => pm.expect(b.upstream.reachable).to.be.true);",
+                  "pm.collectionVariables.set('mode', b.upstream.mode);",
+                  "// Point folder 6 at whatever the engine is actually talking to, so the two",
+                  "// can never drift apart in front of an audience.",
+                  "pm.collectionVariables.set('sandbox_url', b.upstream.base_url);",
+                  "pm.environment.set('sandbox_url', b.upstream.base_url);",
+                  "console.log('Engine ' + b.engine_version + ' \u2192 ' + b.upstream.mode + ' sandbox at ' + b.upstream.base_url);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Is the sandbox up? (direct)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{team_api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{sandbox_url}}/healthz",
+              "host": [
+                "{{sandbox_url}}"
+              ],
+              "path": [
+                "healthz"
+              ]
+            },
+            "description": "Talks to the sandbox directly, bypassing our engine \u2014 the only way to tell *which* of the two is down. The UI never calls the sandbox itself.\n\nThe previous request pointed this at whatever the engine is using, so it follows you between the live sandbox and the offline replica automatically.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. What can this engine do?",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{engine_url}}/v1/config",
+              "host": [
+                "{{engine_url}}"
+              ],
+              "path": [
+                "v1",
+                "config"
+              ]
+            },
+            "description": "The decision configuration, in one response: every check that runs, the concern weights, the step-up threshold, and the five scenarios with the cardholder instruction each one enforces.\n\nGood screen to have open while demoing."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('five scenarios', () => pm.expect(b.scenarios).to.have.lengthOf(5));",
+                  "b.scenarios.forEach(s => console.log(s.scenario_id + '  ' + s.event_count + ' events  \"' + s.cardholder_instruction + '\"'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1 \u00b7 The customer's instruction",
+      "description": "How a sentence the cardholder typed becomes rules a machine can enforce \u2014 and how the customer keeps control of it. Run these in order; each one stores what the next needs.",
+      "item": [
+        {
+          "name": "Compile it (nothing is saved)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{engine_url}}/v1/mandates/compile",
+              "host": [
+                "{{engine_url}}"
+              ],
+              "path": [
+                "v1",
+                "mandates",
+                "compile"
+              ]
+            },
+            "description": "The review screen. Turns the instruction into rules **without** saving anything, so you can edit and re-run this as often as you like.\n\nLook at `provenance` on each rule: it is the exact words of the instruction that rule came from. That is what lets a customer check the compilation instead of trusting it.\n\n`open_questions` is what the compiler was *not* sure about. It is asked, never guessed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instruction\": \"{{instruction}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('the instruction is unchanged', () => pm.expect(b.source_instruction).to.eql(pm.collectionVariables.get('instruction')));",
+                  "console.log('Rules:'); b.rules.forEach(r => console.log('  ' + r.field + ' ' + r.operator + ' ' + r.value + '   \u2190 \"' + r.provenance + '\"'));",
+                  "console.log('Also enforced:'); b.intent_facets.forEach(f => console.log('  ' + f.kind + '   \u2190 \"' + f.provenance + '\"'));",
+                  "if (b.open_questions.length) console.log('Open questions: ' + b.open_questions.join(' | '));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create the draft",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{engine_url}}/v1/mandates",
+              "host": [
+                "{{engine_url}}"
+              ],
+              "path": [
+                "v1",
+                "mandates"
+              ]
+            },
+            "description": "Saves the compiled rules as a **draft** on the sandbox. A draft cannot spend anything \u2014 it is a proposal waiting for the customer.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instruction\": \"{{instruction}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const b = pm.response.json();",
+                  "pm.collectionVariables.set('draft_id', b.draft_id);",
+                  "pm.test('a draft id came back', () => pm.expect(b.draft_id).to.be.a('string'));",
+                  "console.log('draft ' + b.draft_id + ' (not active yet)');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Customer confirms it",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{engine_url}}/v1/mandates/{{draft_id}}/confirm",
+              "host": [
+                "{{engine_url}}"
+              ],
+              "path": [
+                "v1",
+                "mandates",
+                "{{draft_id}}",
+                "confirm"
+              ]
+            },
+            "description": "The customer's consent. **Nothing is enforceable until this call.** The response carries the active `mandate_id`, which is what a scenario run binds to.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"confirmed\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.collectionVariables.set('mandate_id', b.mandate_id);",
+                  "pm.test('the mandate is active', () => pm.expect(b.status).to.eql('active'));",
+                  "console.log('active mandate ' + b.mandate_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Read it back",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{engine_url}}/v1/mandates/{{mandate_id}}",
+              "host": [
+                "{{engine_url}}"
+              ],
+              "path": [
+                "v1",
+                "mandates",
+                "{{mandate_id}}"
+              ]
+            },
+            "description": "The stored mandate, including `guidance` and `open_questions`. Those two are **not** carried on live transaction events, so this is the only place to read them at decision time."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Tighten it (allowed)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{engine_url}}/v1/mandates/{{mandate_id}}",
+              "host": [
+                "{{engine_url}}"
+              ],
+              "path": [
+                "v1",
+                "mandates",
+                "{{mandate_id}}"
+              ]
+            },
+            "description": "A mandate can always be made **stricter**: rules may be added, and `uncertainty_policy` may move approve \u2192 ask \u2192 decline.\n\nNote: this changes the policy for *later* runs. A run in flight keeps the snapshot it started with, so nobody can move the goalposts mid-purchase.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"uncertainty_policy\": \"decline\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('now declines when uncertain', () => pm.expect(pm.response.json().uncertainty_policy).to.eql('decline'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Loosen it (must be refused)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{engine_url}}/v1/mandates/{{mandate_id}}",
+              "host": [
+                "{{engine_url}}"
+              ],
+              "path": [
+                "v1",
+                "mandates",
+                "{{mandate_id}}"
+              ]
+            },
+            "description": "The same call in the other direction. **This is supposed to fail with 422.**\n\nAn agent that could relax its own leash would not be a leash. A red 422 here is the test passing.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"uncertainty_policy\": \"approve\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('loosening is refused (422)', () => pm.response.to.have.status(422));",
+                  "pm.test('with a reason', () => pm.expect(pm.response.json().error.code).to.eql('policy_loosened'));",
+                  "console.log('Refused, as intended: ' + pm.response.json().error.message);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2 \u00b7 Watch it decide",
+      "description": "Start a scenario and the engine long-polls the sandbox, decides every purchase attempt, and submits each answer \u2014 all inside the 8-second deadline. **Start here if you just want to see it work.**",
+      "item": [
+        {
+          "name": "Start a scenario (one click)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{engine_url}}/v1/runs",
+              "host": [
+                "{{engine_url}}"
+              ],
+              "path": [
+                "v1",
+                "runs"
+              ]
+            },
+            "description": "Starts scenario `{{scenario_id}}` and the loop that decides it. Returns immediately \u2014 the decisions arrive over the next few seconds.\n\nA step-up holds a run until the customer answers \u2014 on the real platform and in the replica alike \u2014 and nobody is answering here, so `auto_resolve` declines each one for you and the run can finish. Folder 3 is where you answer one yourself.\n\nNo `mandate_id` here, so the engine compiles and confirms the scenario's own cardholder instruction for you. To use a mandate you built in folder 1, add `\"mandate_id\": \"{{mandate_id}}\"` to the body.\n\n**Change `scenario_id` in the collection variables to try another:**\n\n| id | what it shows |\n|---|---|\n| SCEN0000 | one purchase, proves the path works |\n| SCEN0001 | a weekly budget that *rolls* |\n| SCEN0002 | item, size and return terms |\n| SCEN0003 | a hijacked-looking session, and its recovery |\n| SCEN0004 | a merchant trying to manipulate the engine |",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"scenario_id\": \"{{scenario_id}}\",\n  \"auto_resolve\": \"decline\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const b = pm.response.json();",
+                  "pm.collectionVariables.set('run_id', b.run_id);",
+                  "pm.collectionVariables.set('mandate_id', b.mandate_id);",
+                  "console.log('run ' + b.run_id + ' started \u2014 ' + b.counters.total + ' purchase attempts incoming');",
+                  "console.log('Step-ups are declined automatically here \u2014 folder 3 is where you answer one.');",
+                  "console.log('Now open \"See the decisions\" and hit Send a few times.');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "See the decisions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{engine_url}}/v1/runs/{{run_id}}",
+              "host": [
+                "{{engine_url}}"
+              ],
+              "path": [
+                "v1",
+                "runs",
+                "{{run_id}}"
+              ]
+            },
+            "description": "The live picture. Hit **Send** again every second or so until `status` reads `complete`; the console below prints each decision as it lands.\n\n`window.approved_spend_chf` is the rolling budget the engine tracks itself \u2014 the sandbox deliberately does not do this for us. Watch it go **down** as old approvals age out of the window."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "const icon = {approve: '[OK]  ', decline: '[NO]  ', step_up: '[ASK] '};",
+                  "console.log('--- ' + b.scenario_id + ' \u2014 ' + b.status + ' ---');",
+                  "b.decisions.forEach(d => console.log(icon[d.decision] + d.source_authorization_id + '  ' + d.customer_message));",
+                  "if (b.window.approved_spend_chf) console.log('Rolling ' + b.window.period_days + '-day spend: CHF ' + b.window.approved_spend_chf + ' (' + b.window.approvals_in_window + ' orders in the window)');",
+                  "console.log('approve=' + b.counters.approve + '  decline=' + b.counters.decline + '  needs-you=' + b.counters.step_up);",
+                  "pm.test('nothing was answered twice', () => pm.expect(b.counters.decided).to.be.at.most(b.counters.delivered));",
+                  "if (b.decisions.length) pm.collectionVariables.set('authorization_id', b.decisions[b.decisions.length - 1].authorization_id);",
+                  "// In a collection run, come back to this request until the run finishes. When",
+                  "// you press Send yourself this does nothing \u2014 just press it again.",
+                  "const tries = Number(pm.collectionVariables.get('poll_tries') || 0);",
+                  "if (b.status === 'complete') {",
+                  "  pm.collectionVariables.set('poll_tries', 0);",
+                  "  pm.test('every attempt was decided', () => pm.expect(b.counters.decided).to.eql(b.counters.total));",
+                  "} else if (tries < 20) {",
+                  "  pm.collectionVariables.set('poll_tries', tries + 1);",
+                  "  console.log('Still running \u2014 press Send again.');",
+                  "  postman.setNextRequest('See the decisions');",
+                  "} else {",
+                  "  pm.collectionVariables.set('poll_tries', 0);",
+                  "  pm.test('the run finished', () => pm.expect(b.status).to.eql('complete'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "All runs so far",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{engine_url}}/v1/runs",
+              "host": [
+                "{{engine_url}}"
+              ],
+              "path": [
+                "v1",
+                "runs"
+              ]
+            },
+            "description": "Every run this engine has started, with its counters. Useful after a demo."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Stop the run",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{engine_url}}/v1/runs/{{run_id}}/stop",
+              "host": [
+                "{{engine_url}}"
+              ],
+              "path": [
+                "v1",
+                "runs",
+                "{{run_id}}",
+                "stop"
+              ]
+            },
+            "description": "Stops the loop after the decision in flight. Nothing already submitted is undone."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3 \u00b7 When it needs you",
+      "description": "`step_up` is the third answer, and the most important one: not yes, not no \u2014 **ask the person whose money it is.** This folder runs its own scenario, so it works on its own.",
+      "item": [
+        {
+          "name": "Run a scenario that needs you",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{engine_url}}/v1/runs",
+              "host": [
+                "{{engine_url}}"
+              ],
+              "path": [
+                "v1",
+                "runs"
+              ]
+            },
+            "description": "SCEN0002 is the one where the cardholder asked for a specific pair of shoes, returnable within 14 days, from a sports retailer. Two of its twelve attempts are neither clearly fine nor clearly wrong \u2014 a seller who never says whether the order can be returned, and a basket with an extra item nobody asked for.\n\nThose two become questions rather than verdicts.\n\nThe run stops at the first of them and waits for you, exactly as it would on the real platform: nothing more is decided until the customer answers.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"scenario_id\": \"SCEN0002\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const b = pm.response.json();",
+                  "pm.collectionVariables.set('stepup_run_id', b.run_id);",
+                  "pm.collectionVariables.set('poll_tries', 0);",
+                  "console.log('run ' + b.run_id + ' \u2014 ' + b.counters.total + ' attempts');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Wait until it asks you",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{engine_url}}/v1/runs/{{stepup_run_id}}",
+              "host": [
+                "{{engine_url}}"
+              ],
+              "path": [
+                "v1",
+                "runs",
+                "{{stepup_run_id}}"
+              ]
+            },
+            "description": "Press Send until the run stops at a step-up \u2014 it waits there until the customer answers. Then go to the next request."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "const tries = Number(pm.collectionVariables.get('poll_tries') || 0);",
+                  "if (b.step_ups.length) {",
+                  "  pm.collectionVariables.set('poll_tries', 0);",
+                  "  pm.collectionVariables.set('step_up_id', b.step_ups[0].authorization_id);",
+                  "  console.log('It stopped to ask you \u2014 ' + b.counters.decided + ' of ' + b.counters.total + ' decided so far.');",
+                  "  pm.test('the run is waiting on the customer', () => pm.expect(b.status).to.eql('running'));",
+                  "} else if (b.status === 'complete') {",
+                  "  pm.collectionVariables.set('poll_tries', 0);",
+                  "  console.log('Finished \u2014 nothing left to ask. Run this folder again from its first request.');",
+                  "} else if (tries < 20) {",
+                  "  pm.collectionVariables.set('poll_tries', tries + 1);",
+                  "  console.log('Still deciding \u2014 press Send again.');",
+                  "  postman.setNextRequest('Wait until it asks you');",
+                  "} else {",
+                  "  pm.collectionVariables.set('poll_tries', 0);",
+                  "  pm.test('the run stopped to ask', () => pm.expect(b.step_ups.length).to.be.above(0));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "What is waiting for the customer?",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{engine_url}}/v1/step-ups",
+              "host": [
+                "{{engine_url}}"
+              ],
+              "path": [
+                "v1",
+                "step-ups"
+              ]
+            },
+            "description": "The notification list. `customer_message` is exactly what the cardholder would see on their phone \u2014 plain language, no jargon, and never the merchant's own text quoted back at them.\n\n`seconds_remaining` counts down the sandbox's 120-second confirmation window."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const s = pm.response.json().step_ups;",
+                  "if (!s.length) { console.log('Nothing waiting. Run this folder again from its first request.'); }",
+                  "s.forEach(x => console.log('[ASK] CHF ' + x.amount_chf + ' at ' + x.merchant_name + ' \u2014 ' + x.seconds_remaining + 's left\\n      ' + x.customer_message));",
+                  "if (s.length) pm.collectionVariables.set('step_up_id', s[0].authorization_id);",
+                  "pm.test('a step-up is waiting', () => pm.expect(s.length).to.be.above(0));",
+                  "pm.test('the message is written for a person, not a machine', () =>",
+                  "  s.forEach(x => x.reason_codes.forEach(c => pm.expect(x.customer_message).to.not.include(c))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Customer says yes",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{engine_url}}/v1/step-ups/{{step_up_id}}/resolve",
+              "host": [
+                "{{engine_url}}"
+              ],
+              "path": [
+                "v1",
+                "step-ups",
+                "{{step_up_id}}",
+                "resolve"
+              ]
+            },
+            "description": "The human answer. This is the *only* way a stepped-up payment can go through \u2014 the sandbox refuses any further automated decision on it.\n\nApproving here also moves the amount into the rolling budget. While it was waiting it counted for nothing, which is the correct accounting: a question is not a purchase.\n\nThe run carries on the moment you answer \u2014 to its next question, or to the end.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"decision\": \"approve\",\n  \"customer_message\": \"Yes, that one is fine.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('the platform recorded it', () => pm.expect(b.status).to.eql('approved'));",
+                  "console.log('Confirmed by the customer. Rolling spend is now CHF ' + (b.window.approved_spend_chf || '0.00'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Customer says no",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{engine_url}}/v1/step-ups/{{step_up_id}}/resolve",
+              "host": [
+                "{{engine_url}}"
+              ],
+              "path": [
+                "v1",
+                "step-ups",
+                "{{step_up_id}}",
+                "resolve"
+              ]
+            },
+            "description": "The other answer. Run this **instead of** the previous request \u2014 a step-up can only be answered once, and a second answer is refused with 409.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"decision\": \"decline\",\n  \"customer_message\": \"No, I did not order that.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('answered, or already answered', () => pm.expect([200, 409]).to.include(pm.response.code));",
+                  "if (pm.response.code === 409) console.log('Already answered once \u2014 that is the rule, not a bug.');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4 \u00b7 Show your work",
+      "description": "Every decision is written to an append-only file, one line each, and nothing is ever rewritten. This is what makes the system defensible to an issuer rather than merely clever.",
+      "item": [
+        {
+          "name": "The trail, newest first",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{engine_url}}/v1/audit?limit=20",
+              "host": [
+                "{{engine_url}}"
+              ],
+              "path": [
+                "v1",
+                "audit"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "The last 20 records. `type` is `decision`, `resolution` (a human answered) or `replay` (the sandbox delivered the same authorization twice)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "console.log(b.records + ' records at ' + b.path);",
+                  "b.audit.forEach(r => console.log('  ' + r.type + '  ' + r.authorization_id + '  ' + (r.decision || r.outcome || '')));",
+                  "if (b.audit.length) pm.collectionVariables.set('authorization_id', b.audit[0].authorization_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "One decision, in full",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{engine_url}}/v1/audit/{{authorization_id}}",
+              "host": [
+                "{{engine_url}}"
+              ],
+              "path": [
+                "v1",
+                "audit",
+                "{{authorization_id}}"
+              ]
+            },
+            "description": "Everything behind one decision:\n\n- **`checks`** \u2014 all twelve, *including the ones that passed*. What else did we look at is a question with an answer.\n- **`score`** \u2014 the concern arithmetic and the threshold it was measured against.\n- **`enrichment`** \u2014 the history we brought to it: how often this card used this shop, whether the device is new, whether the shop's name imitates one the customer trusts.\n- **`timing`** \u2014 how much of the 8-second deadline was left, and how long we took (single-digit milliseconds).\n- **`upstream`** \u2014 what the *platform* did with our answer, which can differ from what we decided.\n- **`inputs_digest`** \u2014 a hash of exactly what we saw, so the input cannot be disputed later."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "const pass = b.checks.filter(c => c.verdict === 'pass').length;",
+                  "console.log(b.decision.toUpperCase() + ' \u2014 ' + b.customer_message);",
+                  "console.log('  ' + b.checks.length + ' checks ran (' + pass + ' passed), score ' + b.score.concern_score + ' vs threshold ' + b.score.step_up_threshold);",
+                  "console.log('  decided in ' + b.timing.latency_ms + 'ms with ' + Math.round(b.timing.budget_ms) + 'ms of deadline left');",
+                  "b.checks.filter(c => c.verdict !== 'pass' && c.detail).forEach(c => console.log('  \u00b7 ' + c.verdict + ': ' + c.detail));",
+                  "pm.test('every check is on the record', () => pm.expect(b.checks.length).to.eql(12));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "The raw lines",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{engine_url}}/v1/audit/{{authorization_id}}/raw",
+              "host": [
+                "{{engine_url}}"
+              ],
+              "path": [
+                "v1",
+                "audit",
+                "{{authorization_id}}",
+                "raw"
+              ]
+            },
+            "description": "The untouched file content for this authorization \u2014 one JSON object per line, in the order it was written. Nothing here was ever edited."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Recent decisions (feed)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{engine_url}}/v1/decisions?limit=20",
+              "host": [
+                "{{engine_url}}"
+              ],
+              "path": [
+                "v1",
+                "decisions"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "A lighter feed than the audit trail \u2014 what the UI's decision list renders."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5 \u00b7 What if the rules were different?",
+      "description": "`/v1/decide` runs the engine over one transaction and **submits nothing**. Change the policy, re-send, and watch the answer change. This is the endpoint the UI uses for its what-if view.",
+      "item": [
+        {
+          "name": "Decide one transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{engine_url}}/v1/decide",
+              "host": [
+                "{{engine_url}}"
+              ],
+              "path": [
+                "v1",
+                "decide"
+              ]
+            },
+            "description": "The body is a complete transaction event. This one is the organizers' own example fixture, pasted in.\n\nNothing is sent to the sandbox and no budget is touched, so this is safe to run as often as you like.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": {\n    \"type\": \"authorization.request\",\n    \"request_id\": \"req_example_0001\",\n    \"deadline_at\": \"2026-08-12T09:00:08Z\",\n    \"authorization\": {\n      \"authorization_id\": \"AU_EXAMPLE_0001\",\n      \"source_authorization_id\": \"AU_EXAMPLE_0001\",\n      \"scenario_id\": \"SCEN0000\",\n      \"replay_order\": 1,\n      \"mandate_id\": \"TM_EXAMPLE_0001\",\n      \"profile_id\": \"PROFILE_EXAMPLE_0001\",\n      \"card_id\": \"CA_EXAMPLE_0001\",\n      \"initiator_type\": \"agent\",\n      \"merchant\": {\n        \"merchant_id\": \"ME_EXAMPLE_0001\",\n        \"merchant_name\": \"Example Market\",\n        \"merchant_category\": \"groceries\",\n        \"merchant_mcc\": \"5411\",\n        \"merchant_country\": \"CH\",\n        \"merchant_city\": \"Zurich\",\n        \"availability\": \"store_and_online\",\n        \"recurring_capable\": \"false\"\n      },\n      \"timestamp\": \"2026-08-12T08:59:59Z\",\n      \"amount\": 20.0,\n      \"currency\": \"CHF\",\n      \"billing_amount_chf\": 20.0,\n      \"items_subtotal\": 18.0,\n      \"delivery_fee\": 2.0,\n      \"channel\": \"ecommerce\",\n      \"customer_device_id\": \"DVC-EXAMPLE\",\n      \"authority_status\": \"active\",\n      \"card_status_at_attempt\": \"active\",\n      \"spend_in_period_before_chf\": null,\n      \"recent_attempt_count_10m\": 0,\n      \"fulfillment_method\": \"delivery\",\n      \"delivery_by\": null,\n      \"order_returnable\": \"unknown\",\n      \"order_cancellable\": \"unknown\",\n      \"related_authorization_id\": null,\n      \"related_authorization_status\": null,\n      \"purchase_description\": \"Example grocery order\",\n      \"items\": [\n        {\n          \"line_no\": 1,\n          \"item_id\": \"IT_EXAMPLE_0001\",\n          \"item_name\": \"Example grocery item\",\n          \"item_category\": \"groceries\",\n          \"quantity\": 1,\n          \"unit_price\": 18.0,\n          \"currency\": \"CHF\",\n          \"item_details\": \"Synthetic parser example\"\n        }\n      ]\n    },\n    \"mandate\": {\n      \"mandate_id\": \"TM_EXAMPLE_0001\",\n      \"status\": \"active\",\n      \"customer_id\": \"CU_EXAMPLE_0001\",\n      \"card_id\": \"CA_EXAMPLE_0001\",\n      \"instruction\": \"Buy one requested item within my stated limit. Ask me when uncertain.\",\n      \"hard_rules\": [],\n      \"uncertainty_policy\": \"ask\",\n      \"profile_id\": \"PROFILE_EXAMPLE_0001\"\n    },\n    \"context\": {\n      \"approved_spend_in_period_chf\": 0.0,\n      \"recent_authorizations\": []\n    },\n    \"runtime\": {\n      \"received_at\": \"2026-08-12T09:00:00Z\",\n      \"history_window_minutes\": 10,\n      \"context_basis\": \"run_decisions_and_scenario_timestamps\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "console.log(b.decision.toUpperCase() + ' \u2014 ' + b.customer_message);",
+                  "pm.test('nothing was submitted', () => pm.expect(b.submitted).to.be.false);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Same transaction, tighter limit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{engine_url}}/v1/decide",
+              "host": [
+                "{{engine_url}}"
+              ],
+              "path": [
+                "v1",
+                "decide"
+              ]
+            },
+            "description": "The identical transaction against a CHF 5 per-order limit. The answer flips to `decline`, and the customer message says which limit and by how much.\n\nEdit `value` in the body and re-send to find the boundary.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": {\n    \"type\": \"authorization.request\",\n    \"request_id\": \"req_example_0001\",\n    \"deadline_at\": \"2026-08-12T09:00:08Z\",\n    \"authorization\": {\n      \"authorization_id\": \"AU_EXAMPLE_0001\",\n      \"source_authorization_id\": \"AU_EXAMPLE_0001\",\n      \"scenario_id\": \"SCEN0000\",\n      \"replay_order\": 1,\n      \"mandate_id\": \"TM_EXAMPLE_0001\",\n      \"profile_id\": \"PROFILE_EXAMPLE_0001\",\n      \"card_id\": \"CA_EXAMPLE_0001\",\n      \"initiator_type\": \"agent\",\n      \"merchant\": {\n        \"merchant_id\": \"ME_EXAMPLE_0001\",\n        \"merchant_name\": \"Example Market\",\n        \"merchant_category\": \"groceries\",\n        \"merchant_mcc\": \"5411\",\n        \"merchant_country\": \"CH\",\n        \"merchant_city\": \"Zurich\",\n        \"availability\": \"store_and_online\",\n        \"recurring_capable\": \"false\"\n      },\n      \"timestamp\": \"2026-08-12T08:59:59Z\",\n      \"amount\": 20.0,\n      \"currency\": \"CHF\",\n      \"billing_amount_chf\": 20.0,\n      \"items_subtotal\": 18.0,\n      \"delivery_fee\": 2.0,\n      \"channel\": \"ecommerce\",\n      \"customer_device_id\": \"DVC-EXAMPLE\",\n      \"authority_status\": \"active\",\n      \"card_status_at_attempt\": \"active\",\n      \"spend_in_period_before_chf\": null,\n      \"recent_attempt_count_10m\": 0,\n      \"fulfillment_method\": \"delivery\",\n      \"delivery_by\": null,\n      \"order_returnable\": \"unknown\",\n      \"order_cancellable\": \"unknown\",\n      \"related_authorization_id\": null,\n      \"related_authorization_status\": null,\n      \"purchase_description\": \"Example grocery order\",\n      \"items\": [\n        {\n          \"line_no\": 1,\n          \"item_id\": \"IT_EXAMPLE_0001\",\n          \"item_name\": \"Example grocery item\",\n          \"item_category\": \"groceries\",\n          \"quantity\": 1,\n          \"unit_price\": 18.0,\n          \"currency\": \"CHF\",\n          \"item_details\": \"Synthetic parser example\"\n        }\n      ]\n    },\n    \"mandate\": {\n      \"mandate_id\": \"TM_EXAMPLE_0001\",\n      \"status\": \"active\",\n      \"customer_id\": \"CU_EXAMPLE_0001\",\n      \"card_id\": \"CA_EXAMPLE_0001\",\n      \"instruction\": \"Buy one requested item within my stated limit. Ask me when uncertain.\",\n      \"hard_rules\": [],\n      \"uncertainty_policy\": \"ask\",\n      \"profile_id\": \"PROFILE_EXAMPLE_0001\"\n    },\n    \"context\": {\n      \"approved_spend_in_period_chf\": 0.0,\n      \"recent_authorizations\": []\n    },\n    \"runtime\": {\n      \"received_at\": \"2026-08-12T09:00:00Z\",\n      \"history_window_minutes\": 10,\n      \"context_basis\": \"run_decisions_and_scenario_timestamps\"\n    }\n  },\n  \"policy\": {\n    \"hard_rules\": [\n      {\n        \"field\": \"billing_amount_chf\",\n        \"operator\": \"<=\",\n        \"value\": 5,\n        \"currency\": \"CHF\",\n        \"scope\": \"purchase\"\n      }\n    ],\n    \"uncertainty_policy\": \"ask\",\n    \"intent_facets\": []\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "console.log(b.decision.toUpperCase() + ' \u2014 ' + b.customer_message);",
+                  "pm.test('the tighter limit binds', () => pm.expect(b.decision).to.eql('decline'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6 \u00b7 The organizers' sandbox (direct)",
+      "description": "For debugging only \u2014 these bypass our engine and talk to the sandbox with the team key. Everything a demo needs is in folders 0\u20135.",
+      "item": [
+        {
+          "name": "Bootstrap: versions, scenarios, limits",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{team_api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{sandbox_url}}/v1/bootstrap",
+              "host": [
+                "{{sandbox_url}}"
+              ],
+              "path": [
+                "v1",
+                "bootstrap"
+              ]
+            },
+            "description": "The platform's own contract: API version, scenarios, deadline and step-up windows. Never hard-code these \u2014 read them here.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reference data",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{team_api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{sandbox_url}}/v1/reference-data",
+              "host": [
+                "{{sandbox_url}}"
+              ],
+              "path": [
+                "v1",
+                "reference-data"
+              ]
+            },
+            "description": "The pack the platform serves: its reference tables by name (customers, accounts, cards, merchants, items, fx_rates, scenario_catalogue) and where the history CSV lives. `make live-pack` writes this to out/live-pack.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "All authorizations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{team_api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{sandbox_url}}/v1/authorizations",
+              "host": [
+                "{{sandbox_url}}"
+              ],
+              "path": [
+                "v1",
+                "authorizations"
+              ]
+            },
+            "description": "Every runtime authorization and what the platform recorded for it. This is also what the engine reads to rebuild its state after a restart.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Event feed",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{team_api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{sandbox_url}}/v1/events?since=0",
+              "host": [
+                "{{sandbox_url}}"
+              ],
+              "path": [
+                "v1",
+                "events"
+              ],
+              "query": [
+                {
+                  "key": "since",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "The append-only platform feed. Store `next_cursor` and pass it as `since`.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reset team state",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{team_api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{sandbox_url}}/v1/team/reset",
+              "host": [
+                "{{sandbox_url}}"
+              ],
+              "path": [
+                "v1",
+                "team",
+                "reset"
+              ]
+            },
+            "description": "Wipes this team's mandates, runs and decisions so a scenario can be replayed from clean. **Disabled during judging** \u2014 expect it to fail then.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('reset, or disabled during judging', () => pm.expect([200, 403, 409]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequisite",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Fail early and in plain language rather than mid-demo.",
+          "const engine = pm.environment.get('engine_url') || pm.collectionVariables.get('engine_url');",
+          "if (!engine) {",
+          "  throw new Error('No environment selected. Pick \"Leash \u2014 local\" in the environment dropdown, top right.');",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "engine_url",
+      "value": "http://127.0.0.1:8000",
+      "description": "Our decision service. Change this only if someone runs it elsewhere."
+    },
+    {
+      "key": "sandbox_url",
+      "value": "https://saw26api.ashyground-364e1d07.switzerlandnorth.azurecontainerapps.io",
+      "description": "The organizers' sandbox. Used only by folder 6."
+    },
+    {
+      "key": "team_api_key",
+      "value": "",
+      "type": "secret",
+      "description": "Only needed for folder 6. Set it in the ENVIRONMENT, never here \u2014 collection variables get shared when you export."
+    },
+    {
+      "key": "scenario_id",
+      "value": "SCEN0001",
+      "description": "Which scenario folder 2 starts. SCEN0000/1/2/3/4."
+    },
+    {
+      "key": "instruction",
+      "value": "Buy household groceries only, up to CHF 120 for each order and no more than CHF 300 across any seven days. Ask me when uncertain.",
+      "description": "The cardholder's own words, used by folder 1. Edit it and re-run the compile request to see different rules come out."
+    },
+    {
+      "key": "draft_id",
+      "value": ""
+    },
+    {
+      "key": "mandate_id",
+      "value": ""
+    },
+    {
+      "key": "run_id",
+      "value": ""
+    },
+    {
+      "key": "authorization_id",
+      "value": ""
+    },
+    {
+      "key": "step_up_id",
+      "value": ""
+    },
+    {
+      "key": "stepup_run_id",
+      "value": ""
+    },
+    {
+      "key": "poll_tries",
+      "value": "0"
+    },
+    {
+      "key": "mode",
+      "value": ""
+    }
+  ]
+}

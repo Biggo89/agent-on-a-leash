@@ -1,0 +1,129 @@
+# Instructions the pack does not contain, written to break the compiler rather than flatter it.
+#
+# The five pack instructions cannot demonstrate generalisation: the regex baseline was written
+# while looking at them, so passing on them proves only that we can read. These six use
+# vocabulary, phrasing and shapes the baseline has never seen. TASKS.md Phase 4, last row.
+#
+# Two kinds of expectation, and the split is the point:
+#
+#   always:     safety properties that must hold whichever compiler ran. These are assertions
+#               about the *guard*, not about the model, so they hold with the key removed.
+#   with_model: what a model is expected to add. Skipped when no model ran, so the suite stays
+#               green offline — and so a live run tells us honestly whether the model earned
+#               its place.
+#
+# `baseline_gap` is documentation, never asserted: it records what the regex compiler gets
+# wrong on this instruction today, which is the argument for the model existing at all.
+
+- id: books_familiar_no_additions
+  instruction: >-
+    Buy me the paperback edition of the novel I picked, for CHF 35 or less, only from a
+    bookshop I have used before, and do not add anything I did not ask for.
+  proves: A domain the baseline vocabulary barely covers, with three requirements in one clause.
+  always:
+    caps: [{value: 35}]
+    # merchant_type is PERMITTED, not required. "only from a bookshop I have used before"
+    # states two properties and "only" governs both, so reading "bookshop" as a shop kind is
+    # faithful, not invented — SCEN0002's "only from a specialist sports retailer" compiles
+    # the same way and nobody calls that over-blocking. Two models added it independently
+    # (gemini-3.7-flash, gemini-3.5-flash-lite), both at high confidence quoting "bookshop".
+    # Nakya's call, 2026-09-08, after this test failed live and was reported rather than
+    # relaxed. It stays out of `with_model` deliberately: requiring it would make the suite
+    # fail on a model that takes the other reading, and that reading is defensible too.
+    no_facets_beyond: [item_identity, merchant_familiarity, merchant_type, no_additions]
+  with_model:
+    facets: [item_identity, merchant_familiarity, no_additions]
+  baseline_gap: >-
+    Finds the cap, the familiarity and the no-additions rule, but the buy-object regex grabs
+    "me the paperback edition of the" and gives up, so it asks the customer a question with
+    that phrase quoted back at them. No item_identity is enforced. It also misses the shop
+    kind: _RETAILER_TYPE needs "a <word> shop", and "bookshop" is one token.
+
+- id: pet_food_monthly_total
+  instruction: >-
+    Reorder our cat food from the pet shop we normally use. Keep the total across any thirty
+    days at or below CHF 90.
+  proves: A period cap with no per-order cap, and familiarity phrased as habit rather than history.
+  always:
+    caps: [{value: 90, scope: period}]
+    no_facets_beyond: [item_identity, merchant_type, merchant_familiarity]
+  with_model:
+    facets: [merchant_familiarity]
+  baseline_gap: >-
+    Misses the familiarity requirement entirely — "the pet shop we normally use" does not
+    match the "shops I have used before" pattern — so the shop constraint silently weakens to
+    "any pet shop". This is the clearest single case for the model.
+
+- id: clothing_size_and_returns
+  instruction: >-
+    Buy me a pair of running trousers in size 48 from a clothing shop, no more than CHF 90
+    per order, and only if the order can be returned within 21 days or more.
+  proves: Four requirements at once in a category the pack's instructions never use this way.
+  always:
+    caps: [{value: 90, scope: purchase}]
+    no_facets_beyond: [item_identity, item_attribute, merchant_type, order_terms]
+  with_model:
+    facets: [item_identity, item_attribute, merchant_type, order_terms]
+  baseline_gap: >-
+    Handles this one well. Kept precisely because a generalisation suite that only contains
+    failures would be selected to flatter the model.
+
+- id: unenforceable_requirement
+  instruction: >-
+    Buy our weekly groceries for up to CHF 80 per order, but only from shops within walking
+    distance of home.
+  proves: >-
+    A requirement none of the six facets can check. The compiler must say so rather than
+    force it into the nearest facet — a merchant_type guess here would decline every online
+    grocer the customer actually wanted.
+  always:
+    caps: [{value: 80, scope: purchase}]
+    no_facets_beyond: [item_identity]
+    never_facets: [merchant_type, merchant_familiarity]
+  with_model:
+    mentions_question: [walking distance]
+  baseline_gap: >-
+    Drops the requirement without a trace: no facet, and no open question either. The
+    customer's constraint vanishes silently, which is the one outcome the brief calls out.
+
+- id: cap_only_no_restrictions
+  instruction: Let the agent buy anything up to CHF 40 per order. Ask me when uncertain.
+  proves: >-
+    The over-blocking guard. There is nothing here to restrict beyond the cap, so any facet
+    at all is an invented rule — and inventing rules is how this challenge is failed quietly.
+  always:
+    caps: [{value: 40, scope: purchase}]
+    no_facets_beyond: []
+  baseline_gap: >-
+    Correct. It asks which items count as "anything", which is a reasonable question and not
+    a restriction.
+
+- id: two_caps_reversed_and_decline
+  instruction: >-
+    Spending limit: CHF 250 in total across any fourteen days, and never more than CHF 75 on
+    a single order. If you are not sure, decline.
+  proves: >-
+    Caps stated period-first, a per-order cap phrased without the words "per order", and an
+    uncertainty policy the customer states outright.
+  always:
+    caps: [{value: 250}, {value: 75}]
+    no_facets_beyond: []
+    uncertainty_policy: decline
+  with_model:
+    scoped_caps: [{value: 250, scope: period, period_days: 14}, {value: 75, scope: purchase}]
+  baseline_gap: >-
+    Both gaps this case was written for are now FIXED, and neither was the one-line widening
+    TASKS.md claimed. The policy gap was not in a regex at all: uncertainty_policy read
+    `"ask" if _UNCERTAIN_ASK.search(...) else "ask"` — both branches identical, dead since
+    the scaffold commit — so no widening of that pattern could have changed anything. Fixed
+    2026-09-09 by _UNCERTAIN_DECLINE plus a load-bearing ternary; policy-ir.md compiler rule
+    6 now owns the semantics, including why `approve` stays unreachable from a cue list.
+    The scope gap: "on a single order" now matches _PER_ORDER,
+    so the baseline scopes both caps exactly as with_model expects. Worth keeping the
+    history, because the original note had the failure backwards. It said the CHF 75 would
+    cap a fortnight of spending — over-blocking. What actually happened is that the CHF 75
+    was scoped as a second fourteen-day rule and then, under decision-rules.md §9 as it
+    stood, lost to the looser CHF 250 rule on the same window and was dropped entirely: a
+    CHF 200 single order approved on an instruction that says never more than 75. That is
+    under-blocking, which is the failure you must not mis-record. Both fixes landed
+    together; §9 now takes the tightest cap rather than the first.

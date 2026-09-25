@@ -1,0 +1,87 @@
+# Language-neutral vectors for the item_attributes check.
+# Spec: specs/check-item-attributes.md
+suite: item_attributes
+check: item_attributes
+cases:
+  - name: no item_attribute facet means the check does not apply
+    facets: []
+    items: [{item_name: Road-running shoes, item_category: sporting_goods}]
+    item_facts: [{size: 42}]
+    expect_verdict: not_applicable
+    expect_reason: null
+
+  - name: requested size present passes
+    facets: [{kind: item_attribute, require: {size: 43}}]
+    items: [{item_name: Road-running shoes, item_category: sporting_goods}]
+    item_facts: [{size: 43}]
+    expect_verdict: pass
+    expect_reason: item_attributes_match
+
+  - name: wrong size is a violation (AU0013)
+    facets: [{kind: item_attribute, require: {size: 43}}]
+    items: [{item_name: Road-running shoes, item_category: sporting_goods}]
+    item_facts: [{size: 42}]
+    expect_verdict: violation
+    expect_reason: item_attribute_mismatch
+    expect_follow_up: An order in size 43 would match.
+    expect_evidence_contains: size_offered=42
+
+  - name: unstated size is uncertainty, not a pass
+    facets: [{kind: item_attribute, require: {size: 43}}]
+    items: [{item_name: Road-running shoes, item_category: sporting_goods}]
+    item_facts: [{}]
+    expect_verdict: unknown
+    expect_reason: item_attributes_unknown
+    note: An unstated size cannot be confirmed correct.
+
+  - name: a facet naming no known attribute is uncertainty
+    facets: [{kind: item_attribute, require: {}}]
+    items: [{item_name: Road-running shoes, item_category: sporting_goods}]
+    item_facts: [{size: 43}]
+    expect_verdict: unknown
+    expect_reason: item_attributes_unknown
+
+  - name: only identity-matching lines are candidates (AU0018)
+    facets:
+      - kind: item_identity
+        require: {item_category_in: [sporting_goods], item_keywords_all: [road, running]}
+      - kind: item_attribute
+        require: {size: 43}
+    items:
+      - {item_name: Road-running shoes, item_category: sporting_goods}
+      - {item_name: Extended protection plan, item_category: subscriptions}
+    item_facts: [{size: 43}, {}]
+    expect_verdict: pass
+    expect_reason: item_attributes_match
+    note: >
+      A protection plan has no size and never will. Comparing it against "size 43" would
+      produce a spurious uncertainty on an order that is fine.
+
+  - name: nothing matched identity, so there is no variant to check (AU0020)
+    facets:
+      - kind: item_identity
+        require: {item_category_in: [sporting_goods], item_keywords_all: [road, running]}
+      - kind: item_attribute
+        require: {size: 43}
+    items: [{item_name: Cycling helmet, item_category: sporting_goods}]
+    item_facts: [{}]
+    expect_verdict: not_applicable
+    expect_reason: null
+    note: item_matches_request has already declined it; a second reason would be noise.
+
+  - name: any mismatching line fails, even beside a correct one
+    facets: [{kind: item_attribute, require: {size: 43}}]
+    items:
+      - {item_name: Road-running shoes, item_category: sporting_goods}
+      - {item_name: Road-running shoes, item_category: sporting_goods}
+    item_facts: [{size: 43}, {size: 42}]
+    expect_verdict: violation
+    expect_reason: item_attribute_mismatch
+    note: A cart holding both sizes is not a fulfilled request; it is a pending return.
+
+  - name: without an identity facet every line is a candidate
+    facets: [{kind: item_attribute, require: {size: 43}}]
+    items: [{item_name: Anything, item_category: sporting_goods}]
+    item_facts: [{size: 42}]
+    expect_verdict: violation
+    expect_reason: item_attribute_mismatch

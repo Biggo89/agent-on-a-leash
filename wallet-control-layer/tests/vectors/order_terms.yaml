@@ -1,0 +1,175 @@
+# Language-neutral vectors for the order_terms check.
+# Spec: specs/check-order-terms.md
+suite: order_terms
+check: order_terms
+cases:
+  - name: no order_terms facet means the check does not apply
+    facets: []
+    order_returnable: "false"
+    expect_verdict: not_applicable
+    expect_reason: null
+    note: >
+      All ten SCEN0001 grocery orders carry order_returnable=false. Without facet gating this
+      check would decline every household delivery in the pack.
+
+  - name: window longer than required passes
+    facets: [{kind: order_terms, require: {return_window_days_min: 14}}]
+    order_returnable: "true"
+    item_facts: [{return_window_days: 30}]
+    expect_verdict: pass
+    expect_reason: order_terms_acceptable
+
+  - name: exactly the required window passes (AU0019, boundary)
+    facets: [{kind: order_terms, require: {return_window_days_min: 14}}]
+    order_returnable: "true"
+    item_facts: [{return_window_days: 14}]
+    expect_verdict: pass
+    expect_reason: order_terms_acceptable
+    note: '"returned within 14 days or more" is >=, so 14 satisfies it.'
+
+  - name: one day short is a violation
+    facets: [{kind: order_terms, require: {return_window_days_min: 14}}]
+    order_returnable: "true"
+    item_facts: [{return_window_days: 13}]
+    expect_verdict: violation
+    expect_reason: return_window_too_short
+
+  - name: seven-day window is too short (AU0015)
+    facets: [{kind: order_terms, require: {return_window_days_min: 14}}]
+    order_returnable: "true"
+    item_facts: [{return_window_days: 7}]
+    expect_verdict: violation
+    expect_reason: return_window_too_short
+    expect_evidence_contains: return_window_days=7
+    expect_follow_up: A seller offering 14 days or more would meet your terms.
+
+  - name: order marked not returnable is a violation (AU0014)
+    facets: [{kind: order_terms, require: {return_window_days_min: 14}}]
+    order_returnable: "false"
+    item_facts: [{final_sale: true}]
+    expect_verdict: violation
+    expect_reason: order_not_returnable
+    expect_follow_up: A seller offering 14 days or more would meet your terms.
+
+  - name: merchant text cannot override the trusted not-returnable flag
+    facets: [{kind: order_terms, require: {return_window_days_min: 14}}]
+    order_returnable: "false"
+    item_facts: [{return_window_days: 30}]
+    expect_verdict: violation
+    expect_reason: order_not_returnable
+    note: >
+      order_returnable is platform-supplied and authoritative for WHETHER returns exist. A
+      merchant cannot write its way out of it in a product description.
+
+  - name: unstated return policy is uncertainty, never false (AU0016)
+    facets: [{kind: order_terms, require: {return_window_days_min: 14}}]
+    order_returnable: "unknown"
+    item_facts: [{}]
+    expect_verdict: unknown
+    expect_reason: return_terms_unknown
+
+  - name: returnable but no window stated anywhere is uncertainty
+    facets: [{kind: order_terms, require: {return_window_days_min: 14}}]
+    order_returnable: "true"
+    item_facts: [{}]
+    expect_verdict: unknown
+    expect_reason: return_terms_unknown
+
+  - name: not_applicable cannot satisfy a return requirement
+    facets: [{kind: order_terms, require: {return_window_days_min: 14}}]
+    order_returnable: "not_applicable"
+    item_facts: [{}]
+    expect_verdict: violation
+    expect_reason: order_not_returnable
+
+  - name: multi-line cart takes the minimum stated window
+    facets: [{kind: order_terms, require: {return_window_days_min: 14}}]
+    order_returnable: "true"
+    item_facts: [{return_window_days: 30}, {return_window_days: 7}]
+    expect_verdict: violation
+    expect_reason: return_window_too_short
+    note: An order is only as returnable as its least returnable line.
+
+  - name: a line stating no window does not force uncertainty (AU0018)
+    facets: [{kind: order_terms, require: {return_window_days_min: 14}}]
+    order_returnable: "true"
+    item_facts: [{return_window_days: 30}, {}]
+    expect_verdict: pass
+    expect_reason: order_terms_acceptable
+    note: >
+      The add-on line states nothing; the order-level flag covers it. AU0018's real problem is
+      the unrequested add-on, which is a different check.
+
+  - name: final sale counts as a zero-day window
+    facets: [{kind: order_terms, require: {return_window_days_min: 14}}]
+    order_returnable: "true"
+    item_facts: [{final_sale: true}]
+    expect_verdict: violation
+    expect_reason: return_window_too_short
+
+  - name: a facet with no minimum is uncertainty, not a pass
+    facets: [{kind: order_terms, require: {}}]
+    order_returnable: "true"
+    item_facts: [{return_window_days: 30}]
+    expect_verdict: unknown
+    expect_reason: return_terms_unknown
+
+  # --- cancellation (specs/check-order-terms.md §"Cancellation") ---
+  # "…refundable rate only." (live SCEN0124). Read off the trusted order_cancellable, never the
+  # item name: "Hotel room, non-refundable rate" tokenises to non, refundable, rate.
+
+  - name: a refundable booking passes
+    facets: [{kind: order_terms, require: {cancellable: true}}]
+    order_cancellable: "true"
+    order_returnable: not_applicable
+    expect_verdict: pass
+    expect_reason: order_cancellable
+    note: >
+      Only the stated term is judged. A hotel room is not returnable, and a refundable-only
+      instruction says nothing about returns, so returns must not decline it.
+
+  - name: a non-refundable booking is a violation
+    facets: [{kind: order_terms, require: {cancellable: true}}]
+    order_cancellable: "false"
+    items: [{item_name: "Hotel room, non-refundable rate", item_category: hotel, quantity: 3, unit_price: 180.0, currency: CHF}]
+    expect_verdict: violation
+    expect_reason: order_not_cancellable
+    expect_follow_up: The same order at a refundable rate would meet your terms.
+
+  - name: cancellation that does not apply is a violation
+    facets: [{kind: order_terms, require: {cancellable: true}}]
+    order_cancellable: not_applicable
+    expect_verdict: violation
+    expect_reason: order_not_cancellable
+    expect_detail_contains: does not apply
+
+  - name: unstated cancellation terms are unknown, never a negative
+    facets: [{kind: order_terms, require: {cancellable: true}}]
+    order_cancellable: unknown
+    expect_verdict: unknown
+    expect_reason: cancellation_terms_unknown
+
+  - name: the item name never stands in for the trusted field
+    facets: [{kind: order_terms, require: {cancellable: true}}]
+    order_cancellable: unknown
+    items: [{item_name: "Hotel room, refundable rate", item_category: hotel, quantity: 3, unit_price: 190.0, currency: CHF}]
+    expect_verdict: unknown
+    expect_reason: cancellation_terms_unknown
+    note: A seller can name a rate anything; only the platform's field says what it is.
+
+  - name: both terms stated are judged separately, returns first
+    facets: [{kind: order_terms, require: {return_window_days_min: 14, cancellable: true}}]
+    order_returnable: "true"
+    order_cancellable: "false"
+    item_facts: [{return_window_days: 30}]
+    expect_verdicts: [pass, violation]
+    expect_reasons: [order_terms_acceptable, order_not_cancellable]
+
+  - name: a return window alone is judged exactly as before
+    facets: [{kind: order_terms, require: {return_window_days_min: 14}}]
+    order_returnable: "true"
+    order_cancellable: "false"
+    item_facts: [{return_window_days: 30}]
+    expect_verdict: pass
+    expect_reason: order_terms_acceptable
+    note: order_cancellable is read only when the instruction asks for a refundable order.

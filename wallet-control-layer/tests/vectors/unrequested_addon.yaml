@@ -1,0 +1,89 @@
+# Language-neutral vectors for the unrequested_addon check.
+# Spec: specs/check-unrequested-addon.md
+suite: unrequested_addon
+check: unrequested_addon
+cases:
+  - name: no item_identity facet means the check does not apply
+    facets: []
+    items:
+      - {item_name: Road-running shoes, item_category: sporting_goods, unit_price: 165.0, quantity: 1, currency: CHF}
+      - {item_name: Extended protection plan, item_category: subscriptions, unit_price: 29.0, quantity: 1, currency: CHF}
+    expect_verdict: not_applicable
+    expect_reason: null
+
+  - name: a cart of only requested items passes quietly
+    facets: [{kind: item_identity, require: {item_category_in: [groceries]}}]
+    items:
+      - {item_name: Fresh produce selection, item_category: groceries, unit_price: 24.0, quantity: 1, currency: CHF}
+      - {item_name: Pantry staples, item_category: groceries, unit_price: 40.0, quantity: 1, currency: CHF}
+    expect_verdict: pass
+    expect_reason: null
+    note: >
+      SCEN0001 grocery baskets routinely carry three lines. A clean multi-line order must not
+      clutter its own approval with a reason code.
+
+  - name: implied scope escalates rather than refusing (AU0018)
+    facets:
+      - kind: item_identity
+        require: {item_category_in: [sporting_goods], item_keywords_all: [road, running]}
+    items:
+      - {item_name: Road-running shoes, item_category: sporting_goods, unit_price: 165.0, quantity: 1, currency: CHF}
+      - {item_name: Extended protection plan, item_category: subscriptions, unit_price: 29.0, quantity: 1, currency: CHF}
+    expect_verdict: concern
+    expect_reason: unrequested_addon
+    expect_evidence_contains: Extended protection plan
+    note: >
+      SCEN0002 never says "do not add anything" — the scope is inferred from naming the shoes.
+      The customer still wants shoes, so ask instead of refusing the whole order.
+
+  - name: an explicit no-additions rule declines (AU0041)
+    facets:
+      - kind: item_identity
+        require: {item_category_in: [electronics], item_keywords_all: ["27", inch]}
+      - kind: no_additions
+        require: {}
+    items:
+      - {item_name: 27-inch computer monitor, item_category: electronics, unit_price: 380.0, quantity: 1, currency: CHF}
+      - {item_name: Extended protection plan, item_category: subscriptions, unit_price: 79.0, quantity: 1, currency: CHF}
+    expect_verdict: violation
+    expect_reason: unrequested_addon
+    note: SCEN0004 states the rule outright, so following it is not over-blocking.
+
+  - name: an off-purpose line in a grocery order escalates (AU0007)
+    facets: [{kind: item_identity, require: {item_category_in: [groceries, household]}}]
+    items:
+      - {item_name: Fresh produce selection, item_category: groceries, unit_price: 24.0, quantity: 1, currency: CHF}
+      - {item_name: Fragrance and beauty gift, item_category: cosmetics, unit_price: 32.0, quantity: 1, currency: CHF}
+    expect_verdict: concern
+    expect_reason: unrequested_addon
+
+  - name: nothing matched identity, so there is no addition to report (AU0020)
+    facets:
+      - kind: item_identity
+        require: {item_category_in: [sporting_goods], item_keywords_all: [road, running]}
+    items:
+      - {item_name: Cycling helmet, item_category: sporting_goods, unit_price: 120.0, quantity: 1, currency: CHF}
+    expect_verdict: not_applicable
+    expect_reason: null
+    note: >
+      Every line would technically be an addition, but that is item_matches_request's finding,
+      already made with a better message.
+
+  - name: add-on cost is reported in CHF for a foreign-currency line
+    facets: [{kind: item_identity, require: {item_category_in: [electronics]}}]
+    items:
+      - {item_name: 27-inch computer monitor, item_category: electronics, unit_price: 300.0, quantity: 1, currency: CHF}
+      - {item_name: Extended protection plan, item_category: subscriptions, unit_price: 100.0, quantity: 1, currency: EUR}
+    expect_verdict: concern
+    expect_reason: unrequested_addon
+    expect_evidence_contains: "95.00"
+    note: 100.00 EUR = 95.00 CHF. The customer is told what it costs them, in their currency.
+
+  - name: quantity is multiplied into the reported cost
+    facets: [{kind: item_identity, require: {item_category_in: [electronics]}}]
+    items:
+      - {item_name: 27-inch computer monitor, item_category: electronics, unit_price: 300.0, quantity: 1, currency: CHF}
+      - {item_name: Extended protection plan, item_category: subscriptions, unit_price: 29.0, quantity: 3, currency: CHF}
+    expect_verdict: concern
+    expect_reason: unrequested_addon
+    expect_evidence_contains: "87.00"

@@ -1,0 +1,72 @@
+# Language-neutral vectors for hard-rule combination.
+# Spec: specs/decision-rules.md §9
+#
+# `hard_rules` is a list, and PATCH is tighten-only — a customer narrowing their mandate adds
+# a rule beside the old one rather than editing it. The binding cap is the tightest match,
+# never the first, or the engine answers with the limit the customer replaced and the decision
+# depends on the order of a JSON list.
+#
+# PURCHASE ONLY. Period rules naming different windows are not comparable by value, so there
+# is no single binding period rule to ask for — every window is enforced separately and lives
+# in `period_windows.yaml`.
+suite: binding_cap
+cases:
+  - name: no rules means the scope carries no cap
+    hard_rules: []
+    scope: purchase
+    expect_value: null
+
+  - name: a single cap binds
+    hard_rules: [{field: billing_amount_chf, operator: "<=", value: 400, scope: purchase}]
+    scope: purchase
+    expect_value: 400.0
+
+  - name: the tighter cap binds when it is listed second
+    note: The reported defect — PATCH appends, so the tightening is always the later entry.
+    hard_rules:
+      - {field: billing_amount_chf, operator: "<=", value: 400, scope: purchase}
+      - {field: billing_amount_chf, operator: "<=", value: 250, scope: purchase}
+    scope: purchase
+    expect_value: 250.0
+
+  - name: the tighter cap binds when it is listed first
+    note: Same answer either way — that is the point. No list-order dependence.
+    hard_rules:
+      - {field: billing_amount_chf, operator: "<=", value: 250, scope: purchase}
+      - {field: billing_amount_chf, operator: "<=", value: 400, scope: purchase}
+    scope: purchase
+    expect_value: 250.0
+
+  - name: a tie on value breaks toward the strict operator
+    note: "< excludes the boundary, so it is the tighter of the two."
+    hard_rules:
+      - {field: billing_amount_chf, operator: "<=", value: 250, scope: purchase}
+      - {field: billing_amount_chf, operator: "<", value: 250, scope: purchase}
+    scope: purchase
+    expect_value: 250.0
+    expect_operator: "<"
+
+  - name: scopes do not interfere
+    hard_rules:
+      - {field: billing_amount_chf, operator: "<=", value: 120, scope: purchase}
+      - {field: billing_amount_chf, operator: "<=", value: 300, scope: period, period_days: 7}
+    scope: purchase
+    expect_value: 120.0
+
+  - name: a rule on another field is not a cap
+    hard_rules: [{field: merchant_country, operator: "<=", value: 400, scope: purchase}]
+    scope: purchase
+    expect_value: null
+
+  - name: an operator that is not an upper bound is not a cap
+    hard_rules: [{field: billing_amount_chf, operator: ">=", value: 400, scope: purchase}]
+    scope: purchase
+    expect_value: null
+
+  - name: a malformed value never wins the comparison
+    note: An unparseable cap must not become the binding limit by sorting first.
+    hard_rules:
+      - {field: billing_amount_chf, operator: "<=", value: "not-a-number", scope: purchase}
+      - {field: billing_amount_chf, operator: "<=", value: 250, scope: purchase}
+    scope: purchase
+    expect_value: 250.0

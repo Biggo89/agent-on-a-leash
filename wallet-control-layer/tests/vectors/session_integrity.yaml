@@ -1,0 +1,146 @@
+# Language-neutral vectors for the session_integrity signals.
+# Spec: specs/check-session-integrity.md
+#
+# The check emits one concern PER SIGNAL, so each is weighted in CONCERN_WEIGHTS and named in
+# the audit record. Whether a combination escalates is combine()'s job, pinned separately in
+# tests/unit/test_concern_config.py.
+suite: session_integrity
+check: session_integrity
+cases:
+  - name: a known device in daylight reports nothing
+    facets: []
+    device_prior_approvals: 52
+    customer_device_id: DVC-B73E47
+    recent_attempt_count_10m: 0
+    night_hours: false
+    expect_verdicts: [pass]
+    expect_reasons: []
+    note: A clean session must not lengthen every approval in the pack.
+
+  - name: a novel device is reported on its own (AU0026)
+    facets: []
+    device_prior_approvals: 0
+    customer_device_id: DVC-4C0E9B
+    recent_attempt_count_10m: 0
+    night_hours: false
+    expect_verdicts: [concern]
+    expect_reasons: [device_novel]
+
+  - name: the full burst reports all three signals (AU0030)
+    facets: []
+    device_prior_approvals: 0
+    customer_device_id: DVC-4C0E9B
+    recent_attempt_count_10m: 3
+    night_hours: true
+    expect_verdicts: [concern, concern, concern]
+    expect_reasons: [device_novel, velocity_elevated, unusual_hour]
+
+  - name: the session relaxes once the known device returns (AU0031)
+    facets: []
+    device_prior_approvals: 52
+    customer_device_id: DVC-B73E47
+    recent_attempt_count_10m: 0
+    night_hours: false
+    expect_verdicts: [pass]
+    expect_reasons: []
+    note: >
+      No sticky state. One anomalous night must not poison every later purchase — that would be
+      over-blocking in its purest form.
+
+  - name: a card with no history has no device baseline before its first approval
+    facets: []
+    familiarity_basis: run
+    run_approvals: 0
+    device_prior_approvals: 0
+    customer_device_id: DVC-LIVE-A
+    recent_attempt_count_10m: 0
+    night_hours: false
+    expect_verdicts: [pass]
+    expect_reasons: []
+    note: >
+      The live cardholders have no history rows, so every device read as novel and all 19
+      step-ups of the first live runs were device_novel. The first device is the baseline.
+
+  - name: a card with no history keeps the device of an order approved in this run
+    facets: []
+    familiarity_basis: run
+    run_approvals: 2
+    device_prior_approvals: 2
+    customer_device_id: DVC-LIVE-A
+    expect_verdicts: [pass]
+    expect_reasons: []
+
+  - name: a card with no history flags a device new to this run's approved orders
+    facets: []
+    familiarity_basis: run
+    run_approvals: 2
+    device_prior_approvals: 0
+    customer_device_id: DVC-LIVE-B
+    expect_verdicts: [concern]
+    expect_reasons: [device_novel]
+    expect_detail_contains: earlier in this session
+    note: SCEN0106's "a new device" still pauses the session once there is a baseline.
+
+  - name: a card with no history still reports velocity before its first approval
+    facets: []
+    familiarity_basis: run
+    run_approvals: 0
+    device_prior_approvals: 0
+    customer_device_id: DVC-LIVE-A
+    recent_attempt_count_10m: 3
+    night_hours: true
+    expect_verdicts: [concern, concern]
+    expect_reasons: [velocity_elevated, unusual_hour]
+    note: Only device novelty needs a history. Velocity and the hour never did.
+
+  - name: velocity alone is reported alone
+    facets: []
+    device_prior_approvals: 40
+    customer_device_id: DVC-KNOWN
+    recent_attempt_count_10m: 3
+    night_hours: false
+    expect_verdicts: [concern]
+    expect_reasons: [velocity_elevated]
+
+  - name: an unusual hour alone is reported alone
+    facets: []
+    device_prior_approvals: 40
+    customer_device_id: DVC-KNOWN
+    recent_attempt_count_10m: 0
+    night_hours: true
+    expect_verdicts: [concern]
+    expect_reasons: [unusual_hour]
+
+  - name: velocity below the threshold is not a signal
+    facets: []
+    device_prior_approvals: 40
+    customer_device_id: DVC-KNOWN
+    recent_attempt_count_10m: 1
+    night_hours: false
+    expect_verdicts: [pass]
+    expect_reasons: []
+
+  - name: an empty device id yields no device signal
+    facets: []
+    device_prior_approvals: 0
+    customer_device_id: ""
+    recent_attempt_count_10m: 0
+    night_hours: false
+    expect_verdicts: [pass]
+    expect_reasons: []
+    note: >
+      History carries empty device ids on in_store and atm rows. Absence of a device is not
+      evidence of a novel one.
+
+  - name: a foreign merchant is not a session signal
+    facets: []
+    device_prior_approvals: 52
+    customer_device_id: DVC-B73E47
+    merchant_country: IT
+    recent_attempt_count_10m: 0
+    night_hours: false
+    expect_verdicts: [pass]
+    expect_reasons: []
+    note: >
+      CA0023 has 23 approved Italian transactions — the persona takes regular trips to Italy.
+      Scoring foreignness would penalise AU0025 and AU0032, both legitimate.

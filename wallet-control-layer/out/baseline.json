@@ -1,0 +1,449 @@
+[
+  {
+    "scenario_id": "SCEN0000",
+    "source_authorization_id": "AU0001",
+    "decision": "approve",
+    "reason_codes": [
+      "within_per_order_limit",
+      "item_matches_request"
+    ],
+    "billing_amount_chf": "20.00"
+  },
+  {
+    "scenario_id": "SCEN0001",
+    "source_authorization_id": "AU0002",
+    "decision": "approve",
+    "reason_codes": [
+      "within_per_order_limit",
+      "within_period_limit",
+      "item_matches_request"
+    ],
+    "billing_amount_chf": "44.50"
+  },
+  {
+    "scenario_id": "SCEN0001",
+    "source_authorization_id": "AU0003",
+    "decision": "approve",
+    "reason_codes": [
+      "within_per_order_limit",
+      "within_period_limit",
+      "item_matches_request"
+    ],
+    "billing_amount_chf": "120.00"
+  },
+  {
+    "scenario_id": "SCEN0001",
+    "source_authorization_id": "AU0004",
+    "decision": "decline",
+    "reason_codes": [
+      "per_order_limit_exceeded"
+    ],
+    "billing_amount_chf": "126.00"
+  },
+  {
+    "scenario_id": "SCEN0001",
+    "source_authorization_id": "AU0005",
+    "decision": "approve",
+    "reason_codes": [
+      "within_per_order_limit",
+      "within_period_limit",
+      "item_matches_request"
+    ],
+    "billing_amount_chf": "70.00"
+  },
+  {
+    "scenario_id": "SCEN0001",
+    "source_authorization_id": "AU0006",
+    "decision": "step_up",
+    "reason_codes": [
+      "split_order_suspected"
+    ],
+    "billing_amount_chf": "65.00"
+  },
+  {
+    "scenario_id": "SCEN0001",
+    "source_authorization_id": "AU0007",
+    "decision": "step_up",
+    "reason_codes": [
+      "unrequested_addon"
+    ],
+    "billing_amount_chf": "62.00"
+  },
+  {
+    "scenario_id": "SCEN0001",
+    "source_authorization_id": "AU0008",
+    "decision": "approve",
+    "reason_codes": [
+      "within_per_order_limit",
+      "within_period_limit",
+      "item_matches_request"
+    ],
+    "billing_amount_chf": "65.50"
+  },
+  {
+    "scenario_id": "SCEN0001",
+    "source_authorization_id": "AU0009",
+    "decision": "decline",
+    "reason_codes": [
+      "period_limit_exceeded"
+    ],
+    "billing_amount_chf": "24.00"
+  },
+  {
+    "scenario_id": "SCEN0001",
+    "source_authorization_id": "AU0010",
+    "decision": "decline",
+    "reason_codes": [
+      "per_order_limit_exceeded",
+      "period_limit_exceeded"
+    ],
+    "billing_amount_chf": "138.00"
+  },
+  {
+    "scenario_id": "SCEN0001",
+    "source_authorization_id": "AU0011",
+    "decision": "approve",
+    "reason_codes": [
+      "within_per_order_limit",
+      "within_period_limit",
+      "item_matches_request"
+    ],
+    "billing_amount_chf": "88.00"
+  },
+  {
+    "scenario_id": "SCEN0002",
+    "source_authorization_id": "AU0012",
+    "decision": "approve",
+    "reason_codes": [
+      "within_per_order_limit",
+      "merchant_meets_requirement",
+      "order_terms_acceptable",
+      "item_matches_request",
+      "item_attributes_match"
+    ],
+    "billing_amount_chf": "165.00"
+  },
+  {
+    "scenario_id": "SCEN0002",
+    "source_authorization_id": "AU0013",
+    "decision": "decline",
+    "reason_codes": [
+      "item_attribute_mismatch"
+    ],
+    "billing_amount_chf": "155.00"
+  },
+  {
+    "scenario_id": "SCEN0002",
+    "source_authorization_id": "AU0014",
+    "decision": "decline",
+    "reason_codes": [
+      "order_not_returnable"
+    ],
+    "billing_amount_chf": "145.00"
+  },
+  {
+    "scenario_id": "SCEN0002",
+    "source_authorization_id": "AU0015",
+    "decision": "decline",
+    "reason_codes": [
+      "return_window_too_short"
+    ],
+    "billing_amount_chf": "158.00"
+  },
+  {
+    "scenario_id": "SCEN0002",
+    "source_authorization_id": "AU0016",
+    "decision": "step_up",
+    "reason_codes": [
+      "return_terms_unknown"
+    ],
+    "billing_amount_chf": "175.00"
+  },
+  {
+    "scenario_id": "SCEN0002",
+    "source_authorization_id": "AU0017",
+    "decision": "decline",
+    "reason_codes": [
+      "item_not_requested"
+    ],
+    "billing_amount_chf": "180.00"
+  },
+  {
+    "scenario_id": "SCEN0002",
+    "source_authorization_id": "AU0018",
+    "decision": "step_up",
+    "reason_codes": [
+      "unrequested_addon"
+    ],
+    "billing_amount_chf": "194.00"
+  },
+  {
+    "scenario_id": "SCEN0002",
+    "source_authorization_id": "AU0019",
+    "decision": "approve",
+    "reason_codes": [
+      "within_per_order_limit",
+      "merchant_meets_requirement",
+      "order_terms_acceptable",
+      "item_matches_request",
+      "item_attributes_match"
+    ],
+    "billing_amount_chf": "168.00"
+  },
+  {
+    "scenario_id": "SCEN0002",
+    "source_authorization_id": "AU0020",
+    "decision": "decline",
+    "reason_codes": [
+      "item_not_requested"
+    ],
+    "billing_amount_chf": "120.00"
+  },
+  {
+    "scenario_id": "SCEN0002",
+    "source_authorization_id": "AU0021",
+    "decision": "decline",
+    "reason_codes": [
+      "per_order_limit_exceeded"
+    ],
+    "billing_amount_chf": "215.00"
+  },
+  {
+    "scenario_id": "SCEN0002",
+    "source_authorization_id": "AU0022",
+    "decision": "decline",
+    "reason_codes": [
+      "merchant_type_not_permitted"
+    ],
+    "billing_amount_chf": "189.00"
+  },
+  {
+    "scenario_id": "SCEN0002",
+    "source_authorization_id": "AU0023",
+    "decision": "approve",
+    "reason_codes": [
+      "within_per_order_limit",
+      "merchant_meets_requirement",
+      "order_terms_acceptable",
+      "item_matches_request",
+      "item_attributes_match"
+    ],
+    "billing_amount_chf": "179.00"
+  },
+  {
+    "scenario_id": "SCEN0003",
+    "source_authorization_id": "AU0024",
+    "decision": "approve",
+    "reason_codes": [
+      "within_per_order_limit",
+      "merchant_familiar",
+      "item_matches_request"
+    ],
+    "billing_amount_chf": "145.00"
+  },
+  {
+    "scenario_id": "SCEN0003",
+    "source_authorization_id": "AU0025",
+    "decision": "approve",
+    "reason_codes": [
+      "within_per_order_limit",
+      "merchant_familiar",
+      "item_matches_request"
+    ],
+    "billing_amount_chf": "189.05"
+  },
+  {
+    "scenario_id": "SCEN0003",
+    "source_authorization_id": "AU0026",
+    "decision": "step_up",
+    "reason_codes": [
+      "device_novel"
+    ],
+    "billing_amount_chf": "165.00"
+  },
+  {
+    "scenario_id": "SCEN0003",
+    "source_authorization_id": "AU0027",
+    "decision": "decline",
+    "reason_codes": [
+      "merchant_not_permitted"
+    ],
+    "billing_amount_chf": "232.00"
+  },
+  {
+    "scenario_id": "SCEN0003",
+    "source_authorization_id": "AU0028",
+    "decision": "decline",
+    "reason_codes": [
+      "merchant_not_permitted"
+    ],
+    "billing_amount_chf": "245.00"
+  },
+  {
+    "scenario_id": "SCEN0003",
+    "source_authorization_id": "AU0029",
+    "decision": "decline",
+    "reason_codes": [
+      "merchant_not_permitted"
+    ],
+    "billing_amount_chf": "245.28"
+  },
+  {
+    "scenario_id": "SCEN0003",
+    "source_authorization_id": "AU0030",
+    "decision": "decline",
+    "reason_codes": [
+      "merchant_not_permitted"
+    ],
+    "billing_amount_chf": "248.00"
+  },
+  {
+    "scenario_id": "SCEN0003",
+    "source_authorization_id": "AU0031",
+    "decision": "approve",
+    "reason_codes": [
+      "within_per_order_limit",
+      "merchant_familiar",
+      "item_matches_request"
+    ],
+    "billing_amount_chf": "95.00"
+  },
+  {
+    "scenario_id": "SCEN0003",
+    "source_authorization_id": "AU0032",
+    "decision": "approve",
+    "reason_codes": [
+      "within_per_order_limit",
+      "merchant_familiar",
+      "item_matches_request"
+    ],
+    "billing_amount_chf": "247.00"
+  },
+  {
+    "scenario_id": "SCEN0003",
+    "source_authorization_id": "AU0033",
+    "decision": "decline",
+    "reason_codes": [
+      "merchant_not_permitted"
+    ],
+    "billing_amount_chf": "138.00"
+  },
+  {
+    "scenario_id": "SCEN0003",
+    "source_authorization_id": "AU0034",
+    "decision": "decline",
+    "reason_codes": [
+      "per_order_limit_exceeded"
+    ],
+    "billing_amount_chf": "268.00"
+  },
+  {
+    "scenario_id": "SCEN0004",
+    "source_authorization_id": "AU0035",
+    "decision": "approve",
+    "reason_codes": [
+      "within_per_order_limit",
+      "merchant_familiar",
+      "item_matches_request"
+    ],
+    "billing_amount_chf": "289.00"
+  },
+  {
+    "scenario_id": "SCEN0004",
+    "source_authorization_id": "AU0036",
+    "decision": "step_up",
+    "reason_codes": [
+      "duplicate_order"
+    ],
+    "billing_amount_chf": "289.00"
+  },
+  {
+    "scenario_id": "SCEN0004",
+    "source_authorization_id": "AU0037",
+    "decision": "decline",
+    "reason_codes": [
+      "per_order_limit_exceeded"
+    ],
+    "billing_amount_chf": "520.00"
+  },
+  {
+    "scenario_id": "SCEN0004",
+    "source_authorization_id": "AU0038",
+    "decision": "approve",
+    "reason_codes": [
+      "within_per_order_limit",
+      "merchant_familiar",
+      "item_matches_request"
+    ],
+    "billing_amount_chf": "391.50"
+  },
+  {
+    "scenario_id": "SCEN0004",
+    "source_authorization_id": "AU0039",
+    "decision": "decline",
+    "reason_codes": [
+      "merchant_not_permitted"
+    ],
+    "billing_amount_chf": "340.00"
+  },
+  {
+    "scenario_id": "SCEN0004",
+    "source_authorization_id": "AU0040",
+    "decision": "step_up",
+    "reason_codes": [
+      "merchant_text_manipulation"
+    ],
+    "billing_amount_chf": "299.00"
+  },
+  {
+    "scenario_id": "SCEN0004",
+    "source_authorization_id": "AU0041",
+    "decision": "decline",
+    "reason_codes": [
+      "per_order_limit_exceeded",
+      "unrequested_addon"
+    ],
+    "billing_amount_chf": "459.00"
+  },
+  {
+    "scenario_id": "SCEN0004",
+    "source_authorization_id": "AU0042",
+    "decision": "approve",
+    "reason_codes": [
+      "within_per_order_limit",
+      "merchant_familiar",
+      "item_matches_request",
+      "legitimate_requote"
+    ],
+    "billing_amount_chf": "350.00"
+  },
+  {
+    "scenario_id": "SCEN0004",
+    "source_authorization_id": "AU0043",
+    "decision": "decline",
+    "reason_codes": [
+      "cart_contradicts_purpose"
+    ],
+    "billing_amount_chf": "195.00"
+  },
+  {
+    "scenario_id": "SCEN0004",
+    "source_authorization_id": "AU0044",
+    "decision": "step_up",
+    "reason_codes": [
+      "merchant_familiarity_ambiguous"
+    ],
+    "billing_amount_chf": "310.00"
+  },
+  {
+    "scenario_id": "SCEN0004",
+    "source_authorization_id": "AU0045",
+    "decision": "approve",
+    "reason_codes": [
+      "within_per_order_limit",
+      "merchant_familiar",
+      "item_matches_request"
+    ],
+    "billing_amount_chf": "399.90"
+  }
+]
