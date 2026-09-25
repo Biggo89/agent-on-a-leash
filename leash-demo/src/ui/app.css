@@ -1063,11 +1063,12 @@ body[data-sheet="1"] { overflow: hidden; }
 }
 .sheet__check b { font-family: var(--mono); color: var(--text-mute); font-weight: 400; }
 
-/* A widening asks, in place, rather than applying and telling you afterwards. */
+/* A widening asks, in place, rather than applying and telling you afterwards. The only toast
+   with buttons, so the only one that takes clicks back from the click-through `.toasts`. */
 .toast--ask {
   background: var(--surface); color: var(--ink); border: 1px solid var(--ask-line);
   border-left: 4px solid var(--brand); display: grid; gap: 4px; max-width: 360px;
-  box-shadow: 0 10px 34px rgba(0, 0, 0, .16);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, .16); pointer-events: auto;
 }
 .toast--ask span { font-size: 11.5px; color: var(--text); line-height: 1.4; }
 .toast--ask .toast__note { color: var(--text-mute); font-style: italic; }

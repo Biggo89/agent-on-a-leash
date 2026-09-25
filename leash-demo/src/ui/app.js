@@ -658,9 +658,13 @@ function confirmWidening(result, setting) {
   t.querySelector('[data-no]').addEventListener('click', () => t.remove());
   t.querySelector('[data-yes]').addEventListener('click', async () => {
     t.remove();
-    await client.confirmAmendment(store.get().run.run_id);
-    await refreshPolicy();
-    toast(`Confirmed. ${SETTING_META[setting].label} now reads as you set it.`, 'ok');
+    try {
+      await client.confirmAmendment(store.get().run.run_id);
+      await refreshPolicy();
+      toast(`Confirmed. ${SETTING_META[setting].label} now reads as you set it.`, 'ok');
+    } catch (e) {
+      toast(`Not confirmed: ${e.message}`, 'warn');
+    }
   });
 }
 
