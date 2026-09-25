@@ -172,6 +172,7 @@ const row = ({ ico, k, s = '', v = '', tone = '', acts = '' }) =>
   `<span class="row__body"><span class="row__k">${k}</span>${s ? `<span class="row__s">${s}</span>` : ''}</span>` +
   `${v ? `<span class="row__v">${v}</span>` : ''}${acts ? `<span class="row__acts">${acts}</span>` : ''}</div>`;
 const kv = (k, v) => `<div class="kv"><span>${k}</span><span class="kv__v">${v}</span></div>`;
+const kvNav = (k, v, view) => `<button class="kv kv--nav" type="button" data-nav="${view}"><span>${k}</span><span class="kv__v">${v}${I.chevron}</span></button>`;
 const mmss = (seconds) => `${Math.floor(seconds / 60)}:${String(Math.max(0, Math.floor(seconds % 60))).padStart(2, '0')}`;
 
 /* ── state ───────────────────────────────────────────────────────────────── */
@@ -268,7 +269,7 @@ function leashCard() {
   if (cap) rows += kv('Per order', `up to CHF ${chf(cap.value)}`);
   for (const r of periods) rows += kv(`Across ${r.period_days} days`, `CHF ${chf(r.value)}`);
   if (!cap && !periods.length && state.me?.setup?.suggested_cap_chf) rows += kv('Suggested when connecting', `up to CHF ${state.me.setup.suggested_cap_chf}`);
-  rows += kv('Open decisions', String(open));
+  rows += kvNav('Open decisions', String(open), 'decisions'); // the screen the status line points to
   return `<section class="card"><div class="leash__hd"><span class="leash__mark">${CFG.signet.hero}</span><span class="row__body"><span class="row__k">${esc(title)}</span><span class="row__s">${esc(sub)}</span></span></div>
 ${rows}<div class="card__foot card__foot--between"><button class="link" type="button" data-nav="manage">Manage Leash</button><button class="link" type="button" data-nav="manage" aria-label="Manage Leash">${I.chevron}</button></div></section>`;
 }

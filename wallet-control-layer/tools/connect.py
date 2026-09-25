@@ -137,10 +137,13 @@ def main() -> int:
     # The app is mounted here, so: the connector derives the authorization server from its
     # own public base (+ /app), introspects over loopback, and the phone talks to the service
     # on the same origin — which is what lets a tunnel's https page call it without mixed content.
+    # Both loopback URLs are pinned, not defaulted: .env.example's WALLET_APP_URL is the
+    # two-process setup's :8081 (make payment-app), and taking it here sent every introspection
+    # to a port nothing listens on — the sign-in succeeded, then every MCP call was a 503.
     os.environ["WALLET_APP_MOUNT"] = "/app"
     os.environ.setdefault("LEASH_CONNECTOR_STATE", str(ROOT / "out" / "connector.json"))
-    os.environ.setdefault("WALLET_APP_URL", f"{local}/app")
-    os.environ.setdefault("LEASH_SERVICE_URL", local)
+    os.environ["WALLET_APP_URL"] = f"{local}/app"
+    os.environ["LEASH_SERVICE_URL"] = local
     os.environ["LEASH_SERVICE_BROWSER_URL"] = ""
 
     from leash.connector.http import public_base
