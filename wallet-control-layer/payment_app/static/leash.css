@@ -44,7 +44,9 @@ svg { display: block; }
 
 .stage { min-height: 100dvh; display: grid; place-items: start center; padding: 24px 12px 40px; }
 .phone {
-  width: 392px; max-width: 100%; min-height: 812px; position: relative;
+  /* min(), not width + max-width: a fixed width sizes the stage's grid column, so 100% never
+     bound and a phone narrower than 392px scrolled sideways with the header icons cut off. */
+  width: min(392px, 100%); min-height: 812px; position: relative;
   background: var(--screen); border-radius: 40px; padding: 54px 18px 22px;
   box-shadow: 0 24px 60px rgba(21, 25, 44, .14);
   display: flex; flex-direction: column;
@@ -105,6 +107,8 @@ svg { display: block; }
 .kv { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
 .kv:last-child { border-bottom: 0; }
 .kv__v { color: var(--slate); text-align: right; white-space: nowrap; }
+.kv--nav { width: 100%; background: none; border: 0; border-bottom: 1px solid var(--line); cursor: pointer; text-align: left; }
+.kv--nav .kv__v { display: inline-flex; align-items: center; gap: 4px; }
 .divider { height: 1px; background: var(--line); margin: 6px 0; }
 .pattern { display: flex; gap: 14px; align-items: flex-start; padding: 16px 0 14px; }
 .pattern__ico { flex: none; width: 56px; height: 56px; border-radius: 50%; background: var(--blue-soft); color: var(--blue); display: grid; place-items: center; }
