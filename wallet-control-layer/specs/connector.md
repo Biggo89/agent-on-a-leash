@@ -191,12 +191,12 @@ endpoints the leash demo reads and writes only the cardholder's verbs.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `WALLET_APP_URL` | `http://127.0.0.1:8081` | where the connector introspects; the authorization server it advertises |
+| `WALLET_APP_URL` | `http://127.0.0.1:8081` | where the connector introspects; the authorization server it advertises. `tools/connect.py` pins it to its own `/app` over loopback, whatever `.env` says |
 | `WALLET_APP_MOUNT` | unset | set to `/app` by `tools/connect.py`: advertise the app under this service's own base |
 | `WALLET_INTROSPECTION_SECRET` | `dev-introspection-secret` | shared by app and connector |
 | `WALLET_APP_STATE` | `out/payment-app.json` | the app's memory; empty string keeps it in memory |
 | `LEASH_PUBLIC_URL` | unset | the connector's public base when the process cannot see it |
-| `LEASH_SERVICE_URL` | `http://127.0.0.1:8000` | where the app reaches the service (revoke); `tools/connect.py` sets it to its own port |
+| `LEASH_SERVICE_URL` | `http://127.0.0.1:8000` | where the app reaches the service (revoke); `tools/connect.py` pins it to its own port |
 | `LEASH_CONNECT_PORT` | `8010` | the one-process demo's port — its own, so it runs beside `make serve` on 8000 |
 | `LEASH_SERVICE_BROWSER_URL` | = `LEASH_SERVICE_URL` | where the phone's JavaScript reaches it; `""` = same origin |
 | `LEASH_CONNECTOR_STATE` | unset; `tools/connect.py` sets `out/connector.json` | where the connector keeps its proposals across restarts; empty keeps them in memory |
