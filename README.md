@@ -29,3 +29,10 @@ open playground/index.html                              # explainer, no server n
 Each folder has its own README with the details. The engine reads the data pack from
 `../viseca-2026/data`. Copy `wallet-control-layer/.env.example` to `.env` for API keys and
 never commit it.
+
+## License
+
+- The source code is released under the [MIT License](LICENSE).
+- The documentation and content in the `docs/` folder are released under the
+  [Creative Commons Attribution 4.0 International (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/)
+  license. See [LICENSE-docs](LICENSE-docs) for details.
