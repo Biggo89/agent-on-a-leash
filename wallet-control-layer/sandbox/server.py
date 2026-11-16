@@ -493,14 +493,20 @@ async def start_run(
 
 
 def _authority_for(scenario_id: str) -> str:
-    mapping = {
-        "SCEN0000": "AUTH0001",
-        "SCEN0001": "AUTH0002",
-        "SCEN0002": "AUTH0003",
-        "SCEN0003": "AUTH0004",
-        "SCEN0004": "AUTH0005",
-    }
-    return mapping[scenario_id]
+    """The cardholder authority a scenario's purchases run under, read from the pack.
+
+    Every purchase attempt names its authority, and the pack gives each scenario exactly one
+    (SCEN0000-0004 run under AUTH0001-0005). Reading it here rather than keeping a table is
+    what lets a scenario added to the pack run without a code change (showcase/README.md).
+    """
+    ids = {a["authority_id"] for a in PACK.scenario_attempts(scenario_id)}
+    if len(ids) != 1:
+        raise _error(
+            500,
+            "pack_inconsistent",
+            f"{scenario_id} names {len(ids)} authorities in purchase_attempts.csv; expected 1",
+        )
+    return ids.pop()
 
 
 @router.get("/v1/scenario-runs/{run_id}")

@@ -32,15 +32,26 @@ HISTORY = HistoryIndex.load(data_dir() / "authorization_history.csv")
 Rewrite = Callable[[dict[str, Any]], dict[str, Any]]
 
 
-def replay_board(rewrite: Rewrite | None = None) -> dict[str, DecisionRecord]:
+def replay_board(
+    rewrite: Rewrite | None = None,
+    *,
+    pack: DataPack | None = None,
+    history: HistoryIndex | None = None,
+    scenarios: list[str] | None = None,
+) -> dict[str, DecisionRecord]:
     """Every fixture, in replay order, keyed on its **public** authorization id.
 
     The key comes from the data pack rather than from the event, so a run whose identifiers
     were rewritten is still comparable, row for row, with one that was not.
+
+    `pack`, `history` and `scenarios` default to the repo pack's whole board. The showcase
+    test passes its own pack, so its scenarios replay through exactly this path.
     """
+    pack = pack or PACK
+    history = history or HISTORY
     records: dict[str, DecisionRecord] = {}
-    for scenario_id in sorted(PACK.scenarios):
-        ir = compile_instruction(PACK.scenarios[scenario_id]["cardholder_instruction"])
+    for scenario_id in scenarios or sorted(pack.scenarios):
+        ir = compile_instruction(pack.scenarios[scenario_id]["cardholder_instruction"])
         windows = period_windows(ir["rules"])
         mandate = {
             "mandate_id": "TM_TEST",
@@ -62,12 +73,12 @@ def replay_board(rewrite: Rewrite | None = None) -> dict[str, DecisionRecord]:
         ledger = Ledger()
         seen: list[EnrichedEvent] = []
         attempts = sorted(
-            (a for a in PACK.attempts if a["scenario_id"] == scenario_id),
+            (a for a in pack.attempts if a["scenario_id"] == scenario_id),
             key=lambda a: int(a["replay_order"]),
         )
         for seq, attempt in enumerate(attempts, start=1):
             event = build_event(
-                PACK,
+                pack,
                 attempt,
                 run_id="RUN_TEST",
                 mandate=mandate,
@@ -80,9 +91,9 @@ def replay_board(rewrite: Rewrite | None = None) -> dict[str, DecisionRecord]:
                 event = rewrite(event)
             ev = parse_event(
                 event,
-                history=HISTORY,
+                history=history,
                 ledger=ledger,
-                merchants=PACK.merchants,
+                merchants=pack.merchants,
                 period_windows=windows,
                 seen_in_run=seen,
             )

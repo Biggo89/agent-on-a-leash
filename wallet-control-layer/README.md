@@ -46,6 +46,11 @@ make impact       # what the control layer adds over a plain spending limit
 `make replay` needs `make sandbox` running in another terminal. Nothing here touches the
 network, so the demo works if the venue Wi-Fi dies.
 
+To show all three verdicts in one short errand, use the showcase scenario **SCEN0900 Three
+outcomes**. It approves one order, asks the cardholder about one, and declines one. Start
+`make sandbox-showcase` instead of `make sandbox`, then run `make replay-showcase`. For the
+demo UI, also start `make serve-showcase`. See [`showcase/README.md`](showcase/README.md).
+
 ### The service the UI and Postman talk to
 
 ```bash

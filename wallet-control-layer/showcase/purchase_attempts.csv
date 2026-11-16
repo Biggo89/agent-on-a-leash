@@ -1,0 +1,4 @@
+authorization_id,scenario_id,replay_order,authority_id,card_id,merchant_id,timestamp,amount,currency,billing_amount_chf,items_subtotal,delivery_fee,channel,customer_device_id,authority_status,card_status_at_attempt,spend_in_period_before_chf,recent_attempt_count_10m,fulfillment_method,delivery_by,order_returnable,order_cancellable,related_authorization_id,related_authorization_status,purchase_description
+AU0901,SCEN0900,1,AUTH0900,CA0001,ME0001,2026-08-24T10:15:00Z,68.50,CHF,68.50,62.50,6.00,ecommerce,DVC-13A598,active,active,,0,delivery,2026-08-25,false,unknown,,,Grocery delivery order
+AU0902,SCEN0900,2,AUTH0900,CA0001,ME0001,2026-08-27T15:40:00Z,79.00,CHF,79.00,73.00,6.00,ecommerce,DVC-13A598,active,active,,0,delivery,2026-08-28,false,unknown,,,Grocery delivery order
+AU0903,SCEN0900,3,AUTH0900,CA0001,ME0001,2026-08-30T11:05:00Z,142.00,CHF,142.00,136.00,6.00,ecommerce,DVC-13A598,active,active,,0,delivery,2026-08-31,false,unknown,,,Grocery delivery order

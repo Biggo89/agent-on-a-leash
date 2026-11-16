@@ -123,6 +123,23 @@ Run these from another terminal in `wallet-control-layer/`:
 `make demo`, `make replay` and `make diff-decisions` reset the replica first. Mandates and runs
 you created by hand offline are gone afterwards.
 
+### All three verdicts in one scenario
+
+The showcase scenario **SCEN0900 Three outcomes** is one grocery errand with three purchases:
+one approved, one sent to the cardholder, and one declined. It lives in
+`wallet-control-layer/showcase/`, because the organizers' pack is read-only. Run it offline
+with these commands, in `wallet-control-layer/`:
+
+| Terminal | Command | What it does |
+|---|---|---|
+| 1 | `make sandbox-showcase` | The replica, serving the repo pack plus the showcase scenario |
+| 2 | `make serve-showcase` | The engine on the same pack, for the demo UI |
+| 3 | `make replay-showcase` | The scenario in the terminal. Needs only terminal 1. |
+
+In the demo UI, switch to **Live engine** and pick **Three outcomes**. The five original
+scenarios stay in the list, and their 45 decisions don't change. Details are in
+[`showcase/README.md`](../wallet-control-layer/showcase/README.md).
+
 ## 5. The demo UI and the explainer
 
 **The demo UI** plays the agent's whole errand in three columns: the agent shopping, the Leash

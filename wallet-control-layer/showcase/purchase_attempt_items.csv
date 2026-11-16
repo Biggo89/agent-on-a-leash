@@ -1,0 +1,8 @@
+authorization_id,line_no,item_id,item_name,item_category,quantity,unit_price,currency,item_details
+AU0901,1,IT0004,Weekly grocery basket,groceries,1,48.00,CHF,Food and household staples
+AU0901,2,IT0001,Fresh produce selection,groceries,1,14.50,CHF,Fruit and vegetables
+AU0902,1,IT0001,Fresh produce selection,groceries,1,26.00,CHF,Fruit and vegetables
+AU0902,2,IT0003,Breakfast supplies,groceries,1,15.00,CHF,"Bread, oats, and yoghurt"
+AU0902,3,IT0062,Fragrance and beauty gift,cosmetics,1,32.00,CHF,Boxed fragrance and beauty gift set
+AU0903,1,IT0004,Weekly grocery basket,groceries,1,96.00,CHF,Weekly food and household staples
+AU0903,2,IT0002,Pantry staples,groceries,1,40.00,CHF,"Rice, pasta, and tinned goods"

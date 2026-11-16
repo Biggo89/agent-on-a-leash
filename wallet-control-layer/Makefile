@@ -32,6 +32,28 @@ serve:  ## Our decision service against the OFFLINE replica → http://127.0.0.1
 	LEASH_BASE_URL=http://127.0.0.1:8099 $(PY) uvicorn leash.service.app:app \
 		--host 127.0.0.1 --port 8000 --reload
 
+# The showcase pack: the repo pack plus the scenarios in showcase/ (showcase/README.md).
+# Rebuilt only when a showcase row or the repo manifest changes, so a second terminal starting
+# serve-showcase never swaps the directory under a replica that is already running.
+SHOWCASE_PACK := $(CURDIR)/out/showcase-pack
+SHOWCASE_SCENARIO ?= SCEN0900
+
+$(SHOWCASE_PACK)/metadata.json: $(wildcard showcase/*.csv) ../viseca-2026/data/metadata.json
+	$(PY) python tools/showcase_pack.py
+
+showcase-pack:  ## Repo pack + the scenarios in showcase/ → out/showcase-pack
+	$(PY) python tools/showcase_pack.py
+
+sandbox-showcase: $(SHOWCASE_PACK)/metadata.json  ## make sandbox, plus SCEN0900 "Three outcomes" → :8099
+	LEASH_DATA_DIR=$(SHOWCASE_PACK) $(PY) uvicorn sandbox.server:app --host 127.0.0.1 --port 8099 --reload
+
+serve-showcase: $(SHOWCASE_PACK)/metadata.json  ## make serve, plus SCEN0900 — pair it with sandbox-showcase → :8000
+	LEASH_DATA_DIR=$(SHOWCASE_PACK) LEASH_BASE_URL=http://127.0.0.1:8099 $(PY) uvicorn leash.service.app:app \
+		--host 127.0.0.1 --port 8000 --reload
+
+replay-showcase: $(SHOWCASE_PACK)/metadata.json  ## SCEN0900 against sandbox-showcase: one approve, one step_up, one decline
+	LEASH_DATA_DIR=$(SHOWCASE_PACK) $(PY) python tools/replay.py --scenario $(SHOWCASE_SCENARIO) --verbose
+
 live-pack:  ## Write the data pack the REAL sandbox serves to out/live-pack (every live target does this first)
 	$(PY) python tools/live_pack.py
 
@@ -104,4 +126,5 @@ baseline:  ## Save the current decision table as the regression baseline
 .PHONY: help setup verify-data check fmt lint typecheck test vectors sandbox serve serve-live \
 	probe-live audit replay replay-live demo compile compile-llm compile-invented compare-providers \
 	compile-live replay-llm payment-app connect probe-connector \
-	tune tune-sweep tune-weights diff-decisions baseline impact impact-detail
+	tune tune-sweep tune-weights diff-decisions baseline impact impact-detail \
+	showcase-pack sandbox-showcase serve-showcase replay-showcase

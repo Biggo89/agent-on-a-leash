@@ -1,0 +1,2 @@
+scenario_id,scenario_name,cardholder_instruction,control_question,control_theme,event_count,short_rationale
+SCEN0900,Three outcomes,Order our groceries for delivery. Keep each order at or below CHF 100 including delivery. Ask me when uncertain.,"Does one errand show all three verdicts, each with a reason the cardholder can read?",showcase,3,"An ordinary basket is approved, a basket with a gift nobody asked for goes to the cardholder, and an order over the per-order limit is declined."
